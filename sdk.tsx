@@ -1,102 +1,127 @@
 import { useState, useEffect, useCallback } from 'react';
 
-interface TabState {
-  tab: string | null;
-  content: string | null;
-}
+type UseUrlTabParamOptions<T extends string> = {
+  paramName?: string;
+  defaultValue?: T;
+  validValues: readonly T[];
+};
 
-const useTabs = () => {
-  const [state, setState] = useState<TabState>(() => {
+type UseUrlTabParamReturn<T extends string> = [
+  T,
+  (newValue: T) => void,
+  (value: string) => boolean
+];
+
+function useUrlTabParam<T extends string>(
+  options: UseUrlTabParamOptions<T>
+): UseUrlTabParamReturn<T> {
+  const {
+    paramName = 'tab',
+    defaultValue,
+    validValues,
+  } = options;
+
+  // Проверяем, что defaultValue есть в validValues, если он предоставлен
+  if (defaultValue && !validValues.includes(defaultValue)) {
+    throw new Error(`Default value "${defaultValue}" is not in validValues`);
+  }
+
+  // Получаем начальное значение из URL
+  const getInitialValue = useCallback((): T => {
+    if (typeof window === 'undefined') {
+      return defaultValue || validValues[0];
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const paramValue = params.get(paramName);
+
+    if (paramValue && validValues.includes(paramValue as T)) {
+      return paramValue as T;
+    }
+
+    return defaultValue || validValues[0];
+  }, [defaultValue, paramName, validValues]);
+
+  const [value, setValue] = useState<T>(getInitialValue);
+
+  // Обновляем URL при изменении значения
+  const updateUrl = useCallback((newValue: T) => {
+    if (typeof window === 'undefined') return;
+
     const url = new URL(window.location.href);
-    const tab = url.searchParams.get('tabcontent');
-    const content = tab ? `Content for tab ${tab}` : null;
+    url.searchParams.set(paramName, newValue);
+    
+    // Используем replaceState чтобы не добавлять новую запись в history
+    window.history.replaceState(null, '', url.toString());
+  }, [paramName]);
 
-    return {
-      tab,
-      content,
-    };
-  });
+  // Устанавливаем новое значение и обновляем URL
+  const setTabValue = useCallback((newValue: T) => {
+    if (!validValues.includes(newValue)) {
+      console.warn(`Value "${newValue}" is not a valid tab value`);
+      return;
+    }
+    
+    setValue(newValue);
+    updateUrl(newValue);
+  }, [updateUrl, validValues]);
 
+  // Проверяем, является ли строка допустимым значением
+  const isValidValue = useCallback((value: string): value is T => {
+    return validValues.includes(value as T);
+  }, [validValues]);
+
+  // Синхронизируем состояние при изменении URL через навигацию (назад/вперед)
   useEffect(() => {
-    const handlePopState = () => {
-      const url = new URL(window.location.href);
-      const tab = url.searchParams.get('tabcontent');
-      const content = tab ? `Content for tab ${tab}` : null;
+    if (typeof window === 'undefined') return;
 
-      setState({
-        tab,
-        content,
-      });
+    const handlePopState = () => {
+      const newValue = getInitialValue();
+      if (newValue !== value) {
+        setValue(newValue);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [getInitialValue, value]);
 
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
+  return [value, setTabValue, isValidValue];
+}
 
-  const setTab = useCallback((tab: string) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('tabcontent', tab);
+export default useUrlTabParam;
 
-    window.history.pushState({}, '', url.toString());
+import useUrlTabParam from './useUrlTabParam';
 
-    setState({
-      tab,
-      content: `Content for tab ${tab}`,
-    });
-  }, []);
+// Определяем допустимые значения
+const TABS = ['profile', 'settings', 'notifications'] as const;
 
-  const clearTab = useCallback(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('tabcontent');
-
-    window.history.pushState({}, '', url.toString());
-
-    setState({
-      tab: null,
-      content: null,
-    });
-  }, []);
-
-  return {
-    state,
-    setTab,
-    clearTab,
-  };
-};
-
-export default useTabs;
-
-import React from 'react';
-import useTabs from './useTabs';
-
-const App = () => {
-  const { state, setTab, clearTab } = useTabs();
-
-  const handleSetTab = (tab: string) => {
-    setTab(tab);
-  };
-
-  const handleClearTab = () => {
-    clearTab();
-  };
+function App() {
+  const [activeTab, setActiveTab, isValidTab] = useUrlTabParam({
+    defaultValue: 'profile',
+    validValues: TABS,
+  });
 
   return (
     <div>
-      <h1>Current Tab: {state.tab}</h1>
-      <h2>Content:</h2>
-      {state.content ? (
-        <p>{state.content}</p>
-      ) : (
-        <p>No content available for this tab</p>
-      )}
-      <button onClick={() => handleSetTab('1')}>Set Tab 1</button>
-      <button onClick={() => handleSetTab('2')}>Set Tab 2</button>
-      <button onClick={handleClearTab}>Clear Tab</button>
+      <h1>Current Tab: {activeTab}</h1>
+      <div>
+        {TABS.map(tab => (
+          <button 
+            key={tab} 
+            onClick={() => setActiveTab(tab)}
+            disabled={activeTab === tab}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+      
+      <div>
+        {activeTab === 'profile' && <ProfileComponent />}
+        {activeTab === 'settings' && <SettingsComponent />}
+        {activeTab === 'notifications' && <NotificationsComponent />}
+      </div>
     </div>
   );
-};
-
-export default App;
+}
