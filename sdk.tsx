@@ -6,11 +6,12 @@ type UseUrlTabParamOptions<T extends string> = {
   validValues: readonly T[];
 };
 
-type UseUrlTabParamReturn<T extends string> = [
-  T,
-  (newValue: T) => void,
-  (value: string) => boolean
-];
+type UseUrlTabParamReturn<T extends string> = {
+  value: T;
+  setValue: (newValue: T) => void;
+  isValidValue: (value: string) => value is T;
+  isInitialValue: boolean;
+};
 
 function useUrlTabParam<T extends string>(
   options: UseUrlTabParamOptions<T>
@@ -27,32 +28,43 @@ function useUrlTabParam<T extends string>(
   }
 
   // Получаем начальное значение из URL
-  const getInitialValue = useCallback((): T => {
+  const getInitialValue = useCallback((): {value: T; isInitial: boolean} => {
     if (typeof window === 'undefined') {
-      return defaultValue || validValues[0];
+      return {
+        value: defaultValue || validValues[0],
+        isInitial: true
+      };
     }
 
     const params = new URLSearchParams(window.location.search);
     const paramValue = params.get(paramName);
 
     if (paramValue && validValues.includes(paramValue as T)) {
-      return paramValue as T;
+      return {
+        value: paramValue as T,
+        isInitial: paramValue === defaultValue || (!defaultValue && paramValue === validValues[0])
+      };
     }
 
-    return defaultValue || validValues[0];
+    return {
+      value: defaultValue || validValues[0],
+      isInitial: true
+    };
   }, [defaultValue, paramName, validValues]);
 
-  const [value, setValue] = useState<T>(getInitialValue);
+  const initialValueState = getInitialValue();
+  const [value, setValue] = useState<T>(initialValueState.value);
+  const [isInitialValue, setIsInitialValue] = useState<boolean>(initialValueState.isInitial);
 
   // Обновляем URL при изменении значения
-  const updateUrl = useCallback((newValue: T) => {
+  const updateUrl = useCallback((newValue: T, isInitial: boolean) => {
     if (typeof window === 'undefined') return;
 
     const url = new URL(window.location.href);
     url.searchParams.set(paramName, newValue);
     
-    // Используем replaceState чтобы не добавлять новую запись в history
     window.history.replaceState(null, '', url.toString());
+    setIsInitialValue(isInitial);
   }, [paramName]);
 
   // Устанавливаем новое значение и обновляем URL
@@ -62,9 +74,10 @@ function useUrlTabParam<T extends string>(
       return;
     }
     
+    const isInitial = newValue === defaultValue || (!defaultValue && newValue === validValues[0]);
     setValue(newValue);
-    updateUrl(newValue);
-  }, [updateUrl, validValues]);
+    updateUrl(newValue, isInitial);
+  }, [updateUrl, validValues, defaultValue]);
 
   // Проверяем, является ли строка допустимым значением
   const isValidValue = useCallback((value: string): value is T => {
@@ -76,9 +89,10 @@ function useUrlTabParam<T extends string>(
     if (typeof window === 'undefined') return;
 
     const handlePopState = () => {
-      const newValue = getInitialValue();
+      const {value: newValue, isInitial} = getInitialValue();
       if (newValue !== value) {
         setValue(newValue);
+        setIsInitialValue(isInitial);
       }
     };
 
@@ -86,42 +100,12 @@ function useUrlTabParam<T extends string>(
     return () => window.removeEventListener('popstate', handlePopState);
   }, [getInitialValue, value]);
 
-  return [value, setTabValue, isValidValue];
+  return {
+    value,
+    setValue: setTabValue,
+    isValidValue,
+    isInitialValue
+  };
 }
 
 export default useUrlTabParam;
-
-import useUrlTabParam from './useUrlTabParam';
-
-// Определяем допустимые значения
-const TABS = ['profile', 'settings', 'notifications'] as const;
-
-function App() {
-  const [activeTab, setActiveTab, isValidTab] = useUrlTabParam({
-    defaultValue: 'profile',
-    validValues: TABS,
-  });
-
-  return (
-    <div>
-      <h1>Current Tab: {activeTab}</h1>
-      <div>
-        {TABS.map(tab => (
-          <button 
-            key={tab} 
-            onClick={() => setActiveTab(tab)}
-            disabled={activeTab === tab}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-      
-      <div>
-        {activeTab === 'profile' && <ProfileComponent />}
-        {activeTab === 'settings' && <SettingsComponent />}
-        {activeTab === 'notifications' && <NotificationsComponent />}
-      </div>
-    </div>
-  );
-}
