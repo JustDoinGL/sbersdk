@@ -1,7 +1,7 @@
 import React from 'react';
 import { Splide, SplideSlide } from '@splidejs/react-splide';
 import '@splidejs/splide/dist/css/splide.min.css';
-import './Slider.scss'; // Создадим этот файл для стилей
+import './Slider.scss';
 
 const Slider = () => {
   const slides = [
@@ -9,6 +9,11 @@ const Slider = () => {
     { id: 2, title: 'СберМаркет' },
     { id: 3, title: 'СберМобайл' },
     { id: 4, title: 'Простой клиентский путь' },
+    { id: 5, title: 'Дополнительный элемент 1' },
+    { id: 6, title: 'Дополнительный элемент 2' },
+    { id: 7, title: 'Дополнительный элемент 3' },
+    { id: 8, title: 'Дополнительный элемент 4' },
+    { id: 9, title: 'Дополнительный элемент 5' },
   ];
 
   return (
@@ -17,14 +22,19 @@ const Slider = () => {
         <Splide
           options={{
             type: 'slide',
-            perPage: 1,
+            perPage: 3,
             perMove: 1,
             gap: '16px',
             arrows: false,
-            pagination: true,
+            pagination: false,
+            drag: true, // Включаем возможность свайпа
+            snap: true,
             breakpoints: {
               768: {
-                destroy: true, // Отключаем слайдер на экранах больше 768px
+                destroy: true,
+              },
+              480: {
+                perPage: 2, // На очень маленьких экранах показываем по 2 элемента
               },
             },
           }}
@@ -70,6 +80,7 @@ export default Slider;
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0 8px;
   }
 
   &__content {
@@ -77,7 +88,7 @@ export default Slider;
   }
 
   &__title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     margin-bottom: 8px;
     color: #333;
@@ -87,20 +98,5 @@ export default Slider;
     font-size: 14px;
     color: #666;
     margin: 0;
-  }
-
-  // Стили для пагинации
-  .splide__pagination {
-    bottom: -20px;
-
-    &__page {
-      background: #ccc;
-      opacity: 1;
-
-      &.is-active {
-        background: #007bff;
-        transform: none;
-      }
-    }
   }
 }
