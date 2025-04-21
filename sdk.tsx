@@ -1,77 +1,3 @@
-import React from 'react';
-import { Splide, SplideSlide } from '@splidejs/react-splide';
-import '@splidejs/splide/dist/css/splide.min.css';
-import './Slider.scss';
-
-const Slider = () => {
-  // Исходные данные (15 элементов)
-  const allItems = [
-    { id: 1, title: 'Кредитная', subtitle: 'СберКарта' },
-    { id: 2, title: 'СберМаркет' },
-    { id: 3, title: 'СберМобайл' },
-    { id: 4, title: 'Простой клиентский путь' },
-    { id: 5, title: 'Элемент 5' },
-    { id: 6, title: 'Элемент 6' },
-    { id: 7, title: 'Элемент 7' },
-    { id: 8, title: 'Элемент 8' },
-    { id: 9, title: 'Элемент 9' },
-    { id: 10, title: 'Элемент 10' },
-    { id: 11, title: 'Элемент 11' },
-    { id: 12, title: 'Элемент 12' },
-    { id: 13, title: 'Элемент 13' },
-    { id: 14, title: 'Элемент 14' },
-    { id: 15, title: 'Элемент 15' },
-  ];
-
-  // Настройки - можно менять
-  const itemsPerGroup = 3; // Или 5 - сколько элементов показывать в одной группе
-
-  // Разбиваем массив на группы
-  const groupedItems = [];
-  for (let i = 0; i < allItems.length; i += itemsPerGroup) {
-    groupedItems.push(allItems.slice(i, i + itemsPerGroup));
-  }
-
-  return (
-    <div className="slider">
-      <div className="slider__container">
-        <Splide
-          options={{
-            type: 'slide',
-            perPage: 1,
-            perMove: 1,
-            gap: '16px',
-            arrows: true,
-            pagination: true,
-            drag: true,
-            breakpoints: {
-              768: {
-                destroy: true,
-              },
-            },
-          }}
-          className="slider__splide"
-        >
-          {groupedItems.map((group, index) => (
-            <SplideSlide key={index} className="slider__slide">
-              <div className="slider__group">
-                {group.map((item) => (
-                  <div key={item.id} className="slider__item">
-                    <h3 className="slider__title">{item.title}</h3>
-                    {item.subtitle && <p className="slider__subtitle">{item.subtitle}</p>}
-                  </div>
-                ))}
-              </div>
-            </SplideSlide>
-          ))}
-        </Splide>
-      </div>
-    </div>
-  );
-};
-
-export default Slider;
-
 .slider {
   &__container {
     max-width: 100%;
@@ -153,3 +79,101 @@ export default Slider;
     }
   }
 }
+
+import React, { useMemo } from 'react';
+import { Splide, SplideSlide, SplideProps } from '@splidejs/react-splide';
+import '@splidejs/splide/dist/css/splide.min.css';
+import './Slider.scss';
+
+interface SlideItem {
+  id: number;
+  title: string;
+  subtitle?: string;
+}
+
+interface SliderProps {
+  items?: SlideItem[];
+  itemsPerGroup?: number;
+}
+
+const DEFAULT_ITEMS: SlideItem[] = [
+  { id: 1, title: 'Кредитная', subtitle: 'СберКарта' },
+  { id: 2, title: 'СберМаркет' },
+  { id: 3, title: 'СберМобайл' },
+  { id: 4, title: 'Простой клиентский путь' },
+  { id: 5, title: 'Элемент 5' },
+  { id: 6, title: 'Элемент 6' },
+  { id: 7, title: 'Элемент 7' },
+  { id: 8, title: 'Элемент 8' },
+  { id: 9, title: 'Элемент 9' },
+  { id: 10, title: 'Элемент 10' },
+  { id: 11, title: 'Элемент 11' },
+  { id: 12, title: 'Элемент 12' },
+  { id: 13, title: 'Элемент 13' },
+  { id: 14, title: 'Элемент 14' },
+  { id: 15, title: 'Элемент 15' },
+];
+
+const DEFAULT_SPLIDE_OPTIONS: SplideProps['options'] = {
+  type: 'slide',
+  perPage: 1,
+  perMove: 1,
+  gap: '16px',
+  arrows: true,
+  pagination: true,
+  drag: true,
+  breakpoints: {
+    768: {
+      destroy: true,
+    },
+  },
+};
+
+const Slider: React.FC<SliderProps> = ({ 
+  items = DEFAULT_ITEMS, 
+  itemsPerGroup = 3 
+}) => {
+  const groupedItems = useMemo(() => {
+    const groups = [];
+    for (let i = 0; i < items.length; i += itemsPerGroup) {
+      groups.push(items.slice(i, i + itemsPerGroup));
+    }
+    return groups;
+  }, [items, itemsPerGroup]);
+
+  const gridTemplateColumns = useMemo(() => {
+    return `repeat(${Math.min(itemsPerGroup, 5)}, 1fr)`;
+  }, [itemsPerGroup]);
+
+  return (
+    <div className="slider">
+      <div className="slider__container">
+        <Splide 
+          options={DEFAULT_SPLIDE_OPTIONS} 
+          className="slider__splide"
+          aria-label="Карусель элементов"
+        >
+          {groupedItems.map((group, groupIndex) => (
+            <SplideSlide key={`group-${groupIndex}`} className="slider__slide">
+              <div 
+                className="slider__group" 
+                style={{ gridTemplateColumns }}
+              >
+                {group.map((item) => (
+                  <div key={`item-${item.id}`} className="slider__item">
+                    <h3 className="slider__title">{item.title}</h3>
+                    {item.subtitle && (
+                      <p className="slider__subtitle">{item.subtitle}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </SplideSlide>
+          ))}
+        </Splide>
+      </div>
+    </div>
+  );
+};
+
+export default Slider;
