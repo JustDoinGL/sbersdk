@@ -1,55 +1,106 @@
-import React, { useState } from 'react';
-import ReactSlider, { ReactSliderProps } from 'react-slider';
-import './Slider.scss';
+import React from 'react';
+import { Splide, SplideSlide } from '@splidejs/react-splide';
+import '@splidejs/splide/dist/css/splide.min.css';
+import './Slider.scss'; // Создадим этот файл для стилей
 
-interface SliderProps extends Omit<ReactSliderProps, 'onChange'> {
-  /**
-   * Callback при изменении значения
-   */
-  onChange?: (value: number | number[]) => void;
-  /**
-   * Дополнительный класс для корневого элемента
-   */
-  className?: string;
-}
-
-export const Slider: React.FC<SliderProps> = ({
-  className = '',
-  onChange,
-  min = 0,
-  max = 100,
-  ...props
-}) => {
-  const [value, setValue] = useState<number | number[]>(
-    props.defaultValue || (Array.isArray(props.value) ? [min, max] : min
-  );
-
-  const handleChange = (newValue: number | number[]) => {
-    setValue(newValue);
-    onChange?.(newValue);
-  };
+const Slider = () => {
+  const slides = [
+    { id: 1, title: 'Кредитная', subtitle: 'СберКарта' },
+    { id: 2, title: 'СберМаркет' },
+    { id: 3, title: 'СберМобайл' },
+    { id: 4, title: 'Простой клиентский путь' },
+  ];
 
   return (
-    <div className={`slider ${className}`.trim()}>
-      <ReactSlider
-        {...props}
-        min={min}
-        max={max}
-        value={value}
-        onChange={handleChange}
-        className="slider__container"
-        thumbClassName="slider__thumb"
-        thumbActiveClassName="slider__thumb--active"
-        trackClassName="slider__track"
-        markClassName="slider__mark"
-        renderThumb={(thumbProps, state) => (
-          <div {...thumbProps} className="slider__thumb">
-            <span className="slider__thumb-value">
-              {Array.isArray(value) ? value[state.index] : value}
-            </span>
-          </div>
-        )}
-      />
+    <div className="slider">
+      <div className="slider__container">
+        <Splide
+          options={{
+            type: 'slide',
+            perPage: 1,
+            perMove: 1,
+            gap: '16px',
+            arrows: false,
+            pagination: true,
+            breakpoints: {
+              768: {
+                destroy: true, // Отключаем слайдер на экранах больше 768px
+              },
+            },
+          }}
+          className="slider__splide"
+        >
+          {slides.map((slide) => (
+            <SplideSlide key={slide.id} className="slider__slide">
+              <div className="slider__content">
+                <h3 className="slider__title">{slide.title}</h3>
+                {slide.subtitle && <p className="slider__subtitle">{slide.subtitle}</p>}
+              </div>
+            </SplideSlide>
+          ))}
+        </Splide>
+      </div>
     </div>
   );
 };
+
+export default Slider;
+
+.slider {
+  &__container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+
+  &__splide {
+    display: block;
+
+    @media (min-width: 768px) {
+      display: none;
+    }
+  }
+
+  &__slide {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__content {
+    text-align: center;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+  }
+
+  &__subtitle {
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+  }
+
+  // Стили для пагинации
+  .splide__pagination {
+    bottom: -20px;
+
+    &__page {
+      background: #ccc;
+      opacity: 1;
+
+      &.is-active {
+        background: #007bff;
+        transform: none;
+      }
+    }
+  }
+}
