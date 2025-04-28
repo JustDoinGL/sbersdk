@@ -1,54 +1,48 @@
-// guidebookValidation.ts
-import { z } from "zod";
+import { Controller } from "react-hook-form";
+import { guidebookValidation } from "./guidebookValidation";
 
-const formatName = (val: string) =>
-  val
+const formatName = (value: string) => {
+  return value
     .split(" ")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
-
-export const guidebookValidation = {
-  FirstName: z
-    .string({ required_error: "Укажите имя" })
-    .trim()
-    .min(2, { message: "Минимум 2 символа" })
-    .transform(formatName) // Автоформатирование при валидации
 };
 
-// FormComponent.tsx
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { guidebookValidation } from "./guidebookValidation";
+const FormField: FC<FormProps> = ({ element }) => {
+  const { control, formState: { errors } } = useFormContext();
+  const [isValid, setIsValid] = useState(false);
 
-export const Form = () => {
-  const { register, watch, setValue } = useForm({
-    resolver: zodResolver(z.object(guidebookValidation)),
-  });
-
-  // Форматируем при каждом изменении
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value;
-    const lastChar = rawValue.slice(-1);
-    
-    // Пропускаем пробел, если предыдущий символ уже пробел
-    if (lastChar === " " && rawValue.slice(-2, -1) === " ") return;
-
-    const formatted = rawValue
-      .split(" ")
-      .map(word => word && (word[0]?.toUpperCase() + word.slice(1).toLowerCase()))
-      .join(" ");
-
-    setValue("FirstName", formatted, { shouldValidate: true });
+  const handleChange = (value: string, onChange: (value: string) => void) => {
+    const formattedValue = formatName(value);
+    onChange(formattedValue); // Отправляем отформатированное значение в RHF
+    const validationResult = guidebookValidation[element.name].safeParse(formattedValue);
+    setIsValid(validationResult.success);
   };
 
   return (
-    <form>
-      <input
-        {...register("FirstName")}
-        onChange={handleNameChange}
-        placeholder="Иван Иванов"
-      />
-      <button type="submit">Отправить</button>
-    </form>
+    <Controller
+      name={element.name}
+      control={control}
+      render={({ field }) => {
+        return (
+          <InputText
+            id={element.name}
+            name={element.name}
+            ref={field.ref}
+            onBlur={() => {
+              field.onBlur();
+              onBlurHandleImg(guidebookValidation[element.name], field.value, field.onBlur);
+            }}
+            onChange={(e) => handleChange(e.target.value, field.onChange)}
+            value={field.value}
+            size={inputSize.large}
+            label={element.label ?? ''}
+            placeholder={element.placeholder ?? ''}
+            error={errors[element.name]?.message ? `${errors[element.name]?.message}` : null}
+            valid={field.value && isValid}
+          />
+        );
+      }}
+    />
   );
 };
