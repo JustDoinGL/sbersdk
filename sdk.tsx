@@ -1,30 +1,62 @@
-
-  const Slider = ({ perPage, data, content }: TBankPartnerSliderProps) => {
-    const groups = useMemo(() => {
-        // Создаем массив групп
-        const result: ListItem[][] = Array.from({ length: perPage }, () => []);
-        
-        // Распределяем элементы по группам с шагом perPage
-        data.forEach((item, index) => {
-            const groupIndex = index % perPage;
-            result[groupIndex].push(item);
-        });
-        
-        return result.filter(group => group.length > 0);
-    }, [data, perPage]);
-
-    return (
-        <div className={cx(CLASS_NAME)}>
-            <Splide options={sliderOptions} className={cx(`${CLASS_NAME}_splide`)}>
-                {groups.map((group, groupIndex) => (
-                    <SplideSlide key={groupIndex}>
-                        {/* Рендерим содержимое группы */}
-                        {group.map((item, itemIndex) => (
-                            <Card key={itemIndex} content={content} item={item} />
-                        ))}
-                    </SplideSlide>
-                ))}
-            </Splide>
-        </div>
-    );
-};
+{
+  "tabs": [
+    {
+      "id": "consultation",
+      "label": "Нужна консультация",
+      "fields": [
+        {
+          "type": "text",
+          "name": "name",
+          "label": "Имя",
+          "required": true
+        },
+        {
+          "type": "text",
+          "name": "question",
+          "label": "Ваш вопрос",
+          "required": true
+        },
+        {
+          "type": "submit",
+          "label": "Отправить заказ"
+        }
+      ]
+    },
+    {
+      "id": "entrepreneur",
+      "label": "Зарегистрируйте ИП или станьте самозанятым",
+      "fields": [
+        {
+          "type": "radio",
+          "name": "registration_type",
+          "label": "Муниципальный программный код:",
+          "options": [
+            {
+              "value": "ip",
+              "label": "Зарегистрировать ИП"
+            },
+            {
+              "value": "selfemployed",
+              "label": "Самозанятым"
+            },
+            {
+              "value": "support",
+              "label": "Способствовать"
+            }
+          ],
+          "required": true
+        },
+        {
+          "type": "text",
+          "name": "full_name",
+          "label": "ФИО",
+          "required": true
+        },
+        {
+          "type": "submit",
+          "label": "Отправить заявку"
+        }
+      ]
+    }
+  ]
+}
