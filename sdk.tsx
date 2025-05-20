@@ -1,39 +1,37 @@
-import React from 'react';
-import QRCode from 'react-qr-code';
+export const useQMath = (options: any, urls: any[]) => {
+    const [qrValues, setQrValues] = useState(urls.map(url => generatedUrl(url)));
 
-const SBOLQRCode = () => {
-  const sbolUrl = "https://ссылка-на-сбол-сервис";
-  const smartpinkUrl = "https://www.site.com/products/..."; // ваш длинный URL
-  
-  const handleQRClick = () => {
-    // Отправляем событие
-    if (window.dataLayer) {
-      window.dataLayer.push({
-        'event': 'SITE_Corporate_reg.social_contract',
-        'action': 'become_ip_or_smz',
-        'label': 'smz.go_to_sbol_qr'
-      });
-    }
-    
-    // Проверяем, нужно ли перенаправлять на смартпинк
-    const shouldRedirectToSmartpink = true; // Здесь ваша логика проверки
-    
-    if (shouldRedirectToSmartpink) {
-      window.location.href = smartpinkUrl;
-    } else {
-      window.location.href = sbolUrl;
-    }
-  };
+    useEffect(() => {
+        const intervals = urls.map((_, index) => {
+            let count = 0;
+            let oldUrl = new URL(qrValues[index]);
 
-  return (
-    <div onClick={handleQRClick} style={{ cursor: 'pointer' }}>
-      <QRCode 
-        value={sbolUrl}
-        size={256}
-        level="H"
-      />
-    </div>
-  );
+            const intervalId = setInterval(() => {
+                const newUrl = generateUrl(urls[index]);
+                const updatedUrl = generatedUrl(urls[index], { onlyCookiesParams: true });
+
+                if (oldUrl.href !== updatedUrl.href) {
+                    setQrValues(prev => {
+                        const newValues = [...prev];
+                        newValues[index] = newUrl;
+                        return newValues;
+                    });
+                }
+
+                oldUrl = new URL(newUrl);
+                oldUrl.searchParams.delete('datetime');
+
+                if (count >= options.iterations) {
+                    clearInterval(intervalId);
+                }
+                count += 1;
+            }, options.interval);
+
+            return intervalId;
+        });
+
+        return () => intervals.forEach(intervalId => clearInterval(intervalId));
+    }, [urls, options.interval, options.iterations]);
+
+    return qrValues;
 };
-
-export default SBOLQRCode;
