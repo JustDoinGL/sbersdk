@@ -10,6 +10,18 @@ interface UrlPair {
 const DEFAULT_ITERATIONS = 10;
 const DEFAULT_INTERVAL = 1000;
 
+// Функция для сравнения URL без временных параметров
+const compareUrlsWithoutTempParams = (url1: string, url2: string) => {
+  const cleanUrl = (url: string) => {
+    const u = new URL(url);
+    u.searchParams.delete('detectme'); // Удаляем временный параметр
+    u.searchParams.delete('_t'); // И другие временные параметры, если есть
+    return u.href;
+  };
+
+  return cleanUrl(url1) === cleanUrl(url2);
+};
+
 export const useQMath = (urls: Content[]) => {
   const [qrValues, setQrValues] = useState<UrlPair[]>(() =>
     urls.map(url => ({
@@ -32,25 +44,33 @@ export const useQMath = (urls: Content[]) => {
         const updatedQrUrl = generatedUrl(url.qr, { onlyCookiesParams: true });
         const updatedButtonUrl = generatedUrl(url.button, { onlyCookiesParams: true });
 
-        const currentQrUrl = new URL(previousUrlsRef.current[index].qr);
-        const currentButtonUrl = new URL(previousUrlsRef.current[index].button);
+        const shouldUpdateQr = !compareUrlsWithoutTempParams(
+          previousUrlsRef.current[index].qr,
+          updatedQrUrl
+        );
 
-        if (currentQrUrl.href !== updatedQrUrl.href || currentButtonUrl.href !== updatedButtonUrl.href) {
+        const shouldUpdateButton = !compareUrlsWithoutTempParams(
+          previousUrlsRef.current[index].button,
+          updatedButtonUrl
+        );
+
+        if (shouldUpdateQr || shouldUpdateButton) {
           setQrValues(prev => {
             const updatedValues = [...prev];
-            updatedValues[index] = { qr: newQrUrl, button: newButtonUrl };
-            previousUrlsRef.current = updatedValues; // Обновляем ref синхронно
+            updatedValues[index] = {
+              qr: shouldUpdateQr ? newQrUrl : prev[index].qr,
+              button: shouldUpdateButton ? newButtonUrl : prev[index].button
+            };
+            previousUrlsRef.current = updatedValues;
             return updatedValues;
           });
         }
 
-        // Обновляем URL без перерендера
-        const newUrls = [...previousUrlsRef.current];
-        newUrls[index] = {
+        // Обновляем ref без перерендера
+        previousUrlsRef.current[index] = {
           qr: newQrUrl,
           button: newButtonUrl
         };
-        previousUrlsRef.current = newUrls;
 
         iterationCount += 1;
         if (iterationCount >= iterations) {
@@ -63,7 +83,7 @@ export const useQMath = (urls: Content[]) => {
     });
 
     return () => intervals.forEach(clearInterval);
-  }, [urls]); // Зависимости только от urls
+  }, [urls]);
 
   return qrValues;
 };
