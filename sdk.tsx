@@ -4,14 +4,14 @@ import Cookies from 'js-cookie';
 interface BuildUrlOptions {
   baseUrl: string;
   staticParams?: Record<string, string>;
-  localStorageParams?: string[];
+  cookieParams?: string[];
   queryParams?: string[];
 }
 
 const useBuildUrl = ({
   baseUrl,
   staticParams = {},
-  localStorageParams = [],
+  cookieParams = [],
   queryParams = [],
 }: BuildUrlOptions): string => {
   return useMemo(() => {
@@ -24,15 +24,15 @@ const useBuildUrl = ({
       }
     });
 
-    // 2. Добавляем параметры из localStorage
-    localStorageParams.forEach(key => {
+    // 2. Добавляем параметры из cookies (используем js-cookie)
+    cookieParams.forEach(key => {
       try {
-        const value = localStorage.getItem(key);
+        const value = Cookies.get(key);
         if (value) {
           url.searchParams.set(key, value);
         }
       } catch (e) {
-        console.warn(`Failed to read localStorage key "${key}"`, e);
+        console.warn(`Failed to read cookie "${key}"`, e);
       }
     });
 
@@ -48,7 +48,7 @@ const useBuildUrl = ({
     }
 
     return url.toString();
-  }, [baseUrl, staticParams, localStorageParams, queryParams]);
+  }, [baseUrl, staticParams, cookieParams, queryParams]);
 };
 
 export default useBuildUrl;
