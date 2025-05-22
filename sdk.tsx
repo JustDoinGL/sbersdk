@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import { useCookies } from 'react-cookie';
-import { useLocation } from 'react-router-dom';
+import Cookies from 'js-cookie';
 
 interface BuildUrlOptions {
   baseUrl: string;
@@ -9,44 +8,40 @@ interface BuildUrlOptions {
   queryParams?: string[];
 }
 
+const getQueryParam = (param: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(param);
+};
+
 const useBuildUrl = ({
   baseUrl,
   staticParams = {},
   cookieParams = [],
   queryParams = [],
 }: BuildUrlOptions): string => {
-  const [cookies] = useCookies();
-  const { search } = useLocation();
-
   return useMemo(() => {
     const url = new URL(baseUrl);
-    const searchParams = new URLSearchParams(search);
 
     // Добавляем статические параметры
     Object.entries(staticParams).forEach(([key, value]) => {
-      if (value) {
-        url.searchParams.set(key, value);
-      }
+      if (value) url.searchParams.set(key, value);
     });
 
-    // Добавляем параметры из cookies
+    // Добавляем параметры из cookies (используем js-cookie)
     cookieParams.forEach(key => {
-      const value = cookies[key];
-      if (value) {
-        url.searchParams.set(key, value);
-      }
+      const value = Cookies.get(key);
+      if (value) url.searchParams.set(key, value);
     });
 
     // Добавляем параметры из query string текущего URL
     queryParams.forEach(key => {
-      const value = searchParams.get(key);
-      if (value) {
-        url.searchParams.set(key, value);
-      }
+      const value = getQueryParam(key);
+      if (value) url.searchParams.set(key, value);
     });
 
     return url.toString();
-  }, [baseUrl, staticParams, cookieParams, queryParams, cookies, search]);
+  }, [baseUrl, staticParams, cookieParams, queryParams]);
 };
 
 export default useBuildUrl;
