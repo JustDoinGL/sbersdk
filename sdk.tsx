@@ -1,31 +1,35 @@
 import { useMemo } from 'react';
 import Cookies from 'js-cookie';
 
-interface BuildUrlOptions {
-  baseUrl: string;
-  staticParams?: Record<string, string>;
-  cookieParams?: string[];
-  queryParams?: string[];
+interface UrlConfig {
+  url: string;
+  tags: {
+    staticLabels: Record<string, string>;
+    cookieLabels: string[];
+    urlLabels: string[];
+  };
 }
 
-const useBuildUrl = ({
-  baseUrl,
-  staticParams = {},
-  cookieParams = [],
-  queryParams = [],
-}: BuildUrlOptions): string => {
-  return useMemo(() => {
+interface UrlBuilderResult {
+  query: string;
+  button: string;
+}
+
+const useBuildUrl = ({ query, button }: { query: UrlConfig; button: UrlConfig }): UrlBuilderResult => {
+  const buildUrl = (config: UrlConfig): string => {
+    const { url: baseUrl, tags } = config;
+    const { staticLabels, cookieLabels, urlLabels } = tags;
     const url = new URL(baseUrl);
 
-    // 1. Добавляем статические параметры
-    Object.entries(staticParams).forEach(([key, value]) => {
+    // Добавляем статические параметры
+    Object.entries(staticLabels).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         url.searchParams.set(key, String(value));
       }
     });
 
-    // 2. Добавляем параметры из cookies (используем js-cookie)
-    cookieParams.forEach(key => {
+    // Добавляем параметры из cookies
+    cookieLabels.forEach(key => {
       try {
         const value = Cookies.get(key);
         if (value) {
@@ -36,10 +40,10 @@ const useBuildUrl = ({
       }
     });
 
-    // 3. Добавляем параметры из текущего URL
+    // Добавляем параметры из текущего URL
     if (typeof window !== 'undefined') {
       const currentParams = new URLSearchParams(window.location.search);
-      queryParams.forEach(key => {
+      urlLabels.forEach(key => {
         const value = currentParams.get(key);
         if (value) {
           url.searchParams.set(key, value);
@@ -48,7 +52,12 @@ const useBuildUrl = ({
     }
 
     return url.toString();
-  }, [baseUrl, staticParams, cookieParams, queryParams]);
+  };
+
+  return useMemo(() => ({
+    query: buildUrl(query),
+    button: buildUrl(button)
+  }), [query, button]);
 };
 
 export default useBuildUrl;
