@@ -6,63 +6,62 @@ interface TagConfiguration {
   urlLabels: string[];
 }
 
-interface UseTagCheckResult {
-  allTags: Record<string, string>;
+interface UseTagBuilderResult {
+  builtUrl: string;
   isLoading: boolean;
 }
 
-const useTagCheck = (config: {
-  url: string;
+const useTagBuilder = (config: {
+  baseUrl: string;
   tags: TagConfiguration;
-}): UseTagCheckResult => {
-  const [allTags, setAllTags] = useState<Record<string, string>>({});
+}): UseTagBuilderResult => {
+  const [builtUrl, setBuiltUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const collectTags = () => {
-      const result: Record<string, string> = {};
+    const buildUrl = () => {
+      const url = new URL(config.baseUrl);
+      const params = new URLSearchParams();
 
-      // Add static labels first
+      // Добавляем статические параметры
       for (const [key, value] of Object.entries(config.tags.staticLabels)) {
         if (value) {
-          result[key] = value;
+          params.append(key, value);
         }
       }
 
-      // Check URL parameters
-      try {
-        const url = new URL(config.url);
+      // Проверяем параметры в текущем URL
+      if (typeof window !== 'undefined') {
+        const currentUrl = new URL(window.location.href);
         for (const param of config.tags.urlLabels) {
-          const value = url.searchParams.get(param);
+          const value = currentUrl.searchParams.get(param);
           if (value) {
-            result[param] = value;
+            params.append(param, value);
           }
         }
-      } catch (e) {
-        console.error('Error parsing URL:', e);
-      }
 
-      // Check cookies if running in browser
-      if (typeof document !== 'undefined') {
+        // Проверяем cookies
         const cookies = document.cookie.split(';');
         for (const param of config.tags.cookieLabels) {
           const foundCookie = cookies.find(cookie => 
             cookie.trim().startsWith(`${param}=`)
           );
           if (foundCookie) {
-            result[param] = foundCookie.split('=')[1].trim();
+            params.append(param, foundCookie.split('=')[1].trim());
           }
         }
       }
 
-      setAllTags(result);
+      // Собираем итоговый URL
+      url.search = params.toString();
+      setBuiltUrl(url.toString());
       setIsLoading(false);
     };
 
-    collectTags();
+    buildUrl();
   }, [config]);
 
-  return { allTags, isLoading };
+  return { builtUrl, isLoading };
 };
 
-export default useTagCheck;
+export default useTagBuilder;
