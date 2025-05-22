@@ -1,89 +1,68 @@
-import { useEffect, useState, useRef } from 'react';
-import { generatedUrl } from '../constants/qr-code';
-import { Content } from '../constants/types';
+import { useEffect, useState } from 'react';
 
-interface UrlPair {
-  qr: string;
-  button: string;
+interface TagConfiguration {
+  staticLabels: Record<string, string>;
+  cookieLabels: string[];
+  urlLabels: string[];
 }
 
-const DEFAULT_ITERATIONS = 10;
-const DEFAULT_INTERVAL = 1000;
+interface UseTagCheckResult {
+  allTags: Record<string, string>;
+  isLoading: boolean;
+}
 
-// Функция для сравнения URL без временных параметров
-const compareUrlsWithoutTempParams = (url1: string, url2: string) => {
-  const cleanUrl = (url: string) => {
-    const u = new URL(url);
-    u.searchParams.delete('detectme'); // Удаляем временный параметр
-    u.searchParams.delete('_t'); // И другие временные параметры, если есть
-    return u.href;
-  };
-
-  return cleanUrl(url1) === cleanUrl(url2);
-};
-
-export const useQMath = (urls: Content[]) => {
-  const [qrValues, setQrValues] = useState<UrlPair[]>(() =>
-    urls.map(url => ({
-      qr: generatedUrl(url.qr),
-      button: generatedUrl(url.button)
-    }))
-  );
-
-  const previousUrlsRef = useRef<UrlPair[]>(qrValues);
+const useTagCheck = (config: {
+  url: string;
+  tags: TagConfiguration;
+}): UseTagCheckResult => {
+  const [allTags, setAllTags] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const intervals = urls.map((url, index) => {
-      let iterationCount = 0;
-      const { iterations = DEFAULT_ITERATIONS, interval = DEFAULT_INTERVAL } = url.updateCookiesOptions || {};
+    const collectTags = () => {
+      const result: Record<string, string> = {};
 
-      const updateUrls = () => {
-        const newQrUrl = generatedUrl(url.qr);
-        const newButtonUrl = generatedUrl(url.button);
-        
-        const updatedQrUrl = generatedUrl(url.qr, { onlyCookiesParams: true });
-        const updatedButtonUrl = generatedUrl(url.button, { onlyCookiesParams: true });
-
-        const shouldUpdateQr = !compareUrlsWithoutTempParams(
-          previousUrlsRef.current[index].qr,
-          updatedQrUrl
-        );
-
-        const shouldUpdateButton = !compareUrlsWithoutTempParams(
-          previousUrlsRef.current[index].button,
-          updatedButtonUrl
-        );
-
-        if (shouldUpdateQr || shouldUpdateButton) {
-          setQrValues(prev => {
-            const updatedValues = [...prev];
-            updatedValues[index] = {
-              qr: shouldUpdateQr ? newQrUrl : prev[index].qr,
-              button: shouldUpdateButton ? newButtonUrl : prev[index].button
-            };
-            previousUrlsRef.current = updatedValues;
-            return updatedValues;
-          });
+      // Add static labels first
+      for (const [key, value] of Object.entries(config.tags.staticLabels)) {
+        if (value) {
+          result[key] = value;
         }
+      }
 
-        // Обновляем ref без перерендера
-        previousUrlsRef.current[index] = {
-          qr: newQrUrl,
-          button: newButtonUrl
-        };
-
-        iterationCount += 1;
-        if (iterationCount >= iterations) {
-          clearInterval(intervalId);
+      // Check URL parameters
+      try {
+        const url = new URL(config.url);
+        for (const param of config.tags.urlLabels) {
+          const value = url.searchParams.get(param);
+          if (value) {
+            result[param] = value;
+          }
         }
-      };
+      } catch (e) {
+        console.error('Error parsing URL:', e);
+      }
 
-      const intervalId = setInterval(updateUrls, interval);
-      return intervalId;
-    });
+      // Check cookies if running in browser
+      if (typeof document !== 'undefined') {
+        const cookies = document.cookie.split(';');
+        for (const param of config.tags.cookieLabels) {
+          const foundCookie = cookies.find(cookie => 
+            cookie.trim().startsWith(`${param}=`)
+          );
+          if (foundCookie) {
+            result[param] = foundCookie.split('=')[1].trim();
+          }
+        }
+      }
 
-    return () => intervals.forEach(clearInterval);
-  }, [urls]);
+      setAllTags(result);
+      setIsLoading(false);
+    };
 
-  return qrValues;
+    collectTags();
+  }, [config]);
+
+  return { allTags, isLoading };
 };
+
+export default useTagCheck;
