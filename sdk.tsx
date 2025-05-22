@@ -4,44 +4,51 @@ import Cookies from 'js-cookie';
 interface BuildUrlOptions {
   baseUrl: string;
   staticParams?: Record<string, string>;
-  cookieParams?: string[];
+  localStorageParams?: string[];
   queryParams?: string[];
 }
-
-const getQueryParam = (param: string): string | null => {
-  if (typeof window === 'undefined') return null;
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get(param);
-};
 
 const useBuildUrl = ({
   baseUrl,
   staticParams = {},
-  cookieParams = [],
+  localStorageParams = [],
   queryParams = [],
 }: BuildUrlOptions): string => {
   return useMemo(() => {
     const url = new URL(baseUrl);
 
-    // Добавляем статические параметры
+    // 1. Добавляем статические параметры
     Object.entries(staticParams).forEach(([key, value]) => {
-      if (value) url.searchParams.set(key, value);
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
     });
 
-    // Добавляем параметры из cookies (используем js-cookie)
-    cookieParams.forEach(key => {
-      const value = Cookies.get(key);
-      if (value) url.searchParams.set(key, value);
+    // 2. Добавляем параметры из localStorage
+    localStorageParams.forEach(key => {
+      try {
+        const value = localStorage.getItem(key);
+        if (value) {
+          url.searchParams.set(key, value);
+        }
+      } catch (e) {
+        console.warn(`Failed to read localStorage key "${key}"`, e);
+      }
     });
 
-    // Добавляем параметры из query string текущего URL
-    queryParams.forEach(key => {
-      const value = getQueryParam(key);
-      if (value) url.searchParams.set(key, value);
-    });
+    // 3. Добавляем параметры из текущего URL
+    if (typeof window !== 'undefined') {
+      const currentParams = new URLSearchParams(window.location.search);
+      queryParams.forEach(key => {
+        const value = currentParams.get(key);
+        if (value) {
+          url.searchParams.set(key, value);
+        }
+      });
+    }
 
     return url.toString();
-  }, [baseUrl, staticParams, cookieParams, queryParams]);
+  }, [baseUrl, staticParams, localStorageParams, queryParams]);
 };
 
 export default useBuildUrl;
