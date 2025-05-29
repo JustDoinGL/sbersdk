@@ -12,18 +12,19 @@ export function useIntersection() {
         }
 
         if (element) {
-            observerRef.current = new IntersectionObserver(([entry]) => {
-                // Обновляем состояние только если изменилась видимость
-                if (entry.isIntersecting !== isVisible) {
+            const observer = new IntersectionObserver(
+                ([entry]) => {
                     setIsVisible(entry.isIntersecting);
-                }
-            });
+                },
+                { threshold: 0.1 } // Настройка: срабатывает при 10% видимости
+            );
 
-            observerRef.current.observe(element);
+            observer.observe(element);
+            observerRef.current = observer;
         } else {
             setIsVisible(false); // Если элемент исчез (например, unmount)
         }
-    }, [isVisible]);
+    }, []); // Пустой массив зависимостей = observer создаётся только один раз
 
     return [setRef, isVisible] as const;
 }
