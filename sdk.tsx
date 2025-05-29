@@ -1,20 +1,29 @@
-export function useIntersection(onIntersect: () => void) {
-    const unsubscribe = useRef<() => void>();
+import { useState, useCallback, useRef } from 'react';
 
-    return useCallback((element: HTMLElement | null) => {
+export function useIntersection() {
+    const [isVisible, setIsVisible] = useState(false);
+    const observerRef = useRef<IntersectionObserver | null>(null);
+
+    const setRef = useCallback((element: HTMLElement | null) => {
+        // Отключаем предыдущий observer
+        if (observerRef.current) {
+            observerRef.current.disconnect();
+            observerRef.current = null;
+        }
+
         if (element) {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        onIntersect();
-                    }
-                });
+            observerRef.current = new IntersectionObserver(([entry]) => {
+                // Обновляем состояние только если изменилась видимость
+                if (entry.isIntersecting !== isVisible) {
+                    setIsVisible(entry.isIntersecting);
+                }
             });
 
-            observer.observe(element);
-            unsubscribe.current = () => observer.disconnect();
+            observerRef.current.observe(element);
         } else {
-            unsubscribe.current?.();
+            setIsVisible(false); // Если элемент исчез (например, unmount)
         }
-    }, [onIntersect]);
+    }, [isVisible]);
+
+    return [setRef, isVisible] as const;
 }
