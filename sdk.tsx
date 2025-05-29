@@ -1,21 +1,20 @@
-import { useState, useEffect } from 'react';
+export function useIntersection(onIntersect: () => void) {
+    const unsubscribe = useRef<() => void>();
 
-export const useStatePixels = (thresholdPixels: number) => {
-    const [isScrolled, setIsScrolled] = useState(false);
+    return useCallback((element: HTMLElement | null) => {
+        if (element) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        onIntersect();
+                    }
+                });
+            });
 
-    useEffect(() => {
-        const handleScroll = () => {
-            const scrollTop = window.scrollY || document.documentElement.scrollTop;
-            setIsScrolled(scrollTop >= thresholdPixels);
-        };
-
-        window.addEventListener('scroll', handleScroll);
-        handleScroll(); // Проверяем сразу при монтировании
-
-        return () => {
-            window.removeEventListener('scroll', handleScroll);
-        };
-    }, [thresholdPixels]);
-
-    return isScrolled;
-};
+            observer.observe(element);
+            unsubscribe.current = () => observer.disconnect();
+        } else {
+            unsubscribe.current?.();
+        }
+    }, [onIntersect]);
+}
