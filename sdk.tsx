@@ -1,102 +1,116 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 export function useScrollVisibility() {
-  const [states, setStates] = useState({
-    isBlockVisible: false,
-    isContainerVisible: true, // По умолчанию true для случаев без контейнера
-    showFilters: false,
-    showResetButton: false
-  });
+    // Состояния видимости
+    const [isBlockVisible, setIsBlockVisible] = useState(false);
+    const [isContainerVisible, setIsContainerVisible] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
+    
+    // Рефы и наблюдатели
+    const blockObserver = useRef<IntersectionObserver | null>(null);
+    const containerObserver = useRef<IntersectionObserver | null>(null);
+    const blockElement = useRef<HTMLElement | null>(null);
+    const containerElement = useRef<HTMLElement | null>(null);
 
-  const observers = useRef({
-    block: null as IntersectionObserver | null,
-    container: null as IntersectionObserver | null
-  });
-
-  const elements = useRef({
-    block: null as HTMLElement | null,
-    container: null as HTMLElement | null
-  });
-
-  const scrollData = useRef({
-    lastY: 0,
-    isDown: false
-  });
-
-  // Функция для обновления состояний с логированием
-  const updateState = useCallback((newState: Partial<typeof states>) => {
-    setStates(prev => {
-      const updated = { ...prev, ...newState };
-      console.log('State updated:', updated);
-      return updated;
+    // Данные скролла
+    const scrollData = useRef({
+        lastY: 0,
+        isScrollingDown: false
     });
-  }, []);
 
-  const handleScroll = useCallback(() => {
-    const currentY = window.scrollY;
-    const isDown = currentY > scrollData.current.lastY;
-    scrollData.current = { lastY: currentY, isDown };
+    // Очистка наблюдателей
+    const cleanupObservers = useCallback(() => {
+        blockObserver.current?.disconnect();
+        blockObserver.current = null;
+        containerObserver.current?.disconnect();
+        containerObserver.current = null;
+    }, []);
 
-    updateState({
-      showFilters: states.isContainerVisible && 
-                 !states.isBlockVisible && 
-                 isDown
-    });
-  }, [states.isContainerVisible, states.isBlockVisible, updateState]);
+    // Настройка наблюдателя для блока
+    const setupBlockObserver = useCallback(() => {
+        if (!blockElement.current) return;
 
-  const setupObserver = useCallback((type: 'block' | 'container') => {
-    const element = elements.current[type];
-    if (!element) return;
+        blockObserver.current?.disconnect();
+        blockObserver.current = new IntersectionObserver(([entry]) => {
+            setIsBlockVisible(entry.isIntersecting);
+            if (entry.isIntersecting) {
+                setShowFilters(false);
+            }
+        }, { threshold: 0.1 });
 
-    observers.current[type]?.disconnect();
+        blockObserver.current.observe(blockElement.current);
+    }, []);
 
-    const observer = new IntersectionObserver(([entry]) => {
-      if (type === 'block') {
-        updateState({ 
-          isBlockVisible: entry.isIntersecting,
-          showFilters: entry.isIntersecting ? false : states.showFilters
-        });
-      } else {
-        updateState({ 
-          isContainerVisible: entry.isIntersecting,
-          ...(!entry.isIntersecting && { 
-            isBlockVisible: false,
-            showFilters: false 
-          })
-        });
-      }
-    }, { threshold: type === 'container' ? 0 : 0.1 });
+    // Настройка наблюдателя для контейнера
+    const setupContainerObserver = useCallback(() => {
+        if (!containerElement.current) {
+            setIsContainerVisible(false);
+            return;
+        }
 
-    observer.observe(element);
-    observers.current[type] = observer;
-  }, [updateState, states.showFilters]);
+        containerObserver.current?.disconnect();
+        containerObserver.current = new IntersectionObserver(([entry]) => {
+            const visible = entry.isIntersecting;
+            setIsContainerVisible(visible);
+            if (!visible) {
+                setIsBlockVisible(false);
+                setShowFilters(false);
+            }
+        }, { threshold: 0 });
 
-  const blockRef = useCallback((node: HTMLElement | null) => {
-    elements.current.block = node;
-    if (node) setupObserver('block');
-    else updateState({ isBlockVisible: false, showFilters: false });
-  }, [setupObserver, updateState]);
+        containerObserver.current.observe(containerElement.current);
+    }, []);
 
-  const containerRef = useCallback((node: HTMLElement | null) => {
-    elements.current.container = node;
-    if (node) setupObserver('container');
-    else updateState({ isContainerVisible: true });
-  }, [setupObserver, updateState]);
+    // Рефы для элементов
+    const blockRef = useCallback((node: HTMLElement | null) => {
+        blockElement.current = node;
+        if (node) {
+            setupBlockObserver();
+        } else {
+            setIsBlockVisible(false);
+        }
+    }, [setupBlockObserver]);
 
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      observers.current.block?.disconnect();
-      observers.current.container?.disconnect();
+    const containerRef = useCallback((node: HTMLElement | null) => {
+        containerElement.current = node;
+        if (node) {
+            setupContainerObserver();
+        } else {
+            setIsContainerVisible(false);
+        }
+    }, [setupContainerObserver]);
+
+    // Обработчик скролла
+    const handleScroll = useCallback(() => {
+        const currentY = window.scrollY;
+        const isDown = currentY > scrollData.current.lastY;
+        
+        scrollData.current = {
+            lastY: currentY,
+            isScrollingDown: isDown
+        };
+
+        const shouldShowFilters = 
+            isContainerVisible && 
+            !isBlockVisible && 
+            isDown;
+
+        setShowFilters(shouldShowFilters);
+    }, [isContainerVisible, isBlockVisible]);
+
+    // Эффекты
+    useEffect(() => {
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            cleanupObservers();
+        };
+    }, [handleScroll, cleanupObservers]);
+
+    return {
+        blockRef,
+        containerRef,
+        showFilters,
+        showResetButton: isContainerVisible && !isBlockVisible
     };
-  }, [handleScroll]);
-
-  return {
-    blockRef,
-    containerRef,
-    showFilters: states.showFilters,
-    showResetButton: states.isContainerVisible && !states.isBlockVisible,
-    debugStates: states // Для отладки
-  };
 }
