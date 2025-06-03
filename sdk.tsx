@@ -6,47 +6,79 @@ export function useScrollVisibility() {
     const [isContainerVisible, setIsContainerVisible] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     
+    // Рефы и наблюдатели
+    const blockObserver = useRef<IntersectionObserver | null>(null);
+    const containerObserver = useRef<IntersectionObserver | null>(null);
+    const blockElement = useRef<HTMLElement | null>(null);
+    const containerElement = useRef<HTMLElement | null>(null);
+
     // Данные скролла
     const scrollData = useRef({
         lastY: 0,
         isScrollingDown: false
     });
 
-    // Рефы для элементов
-    const blockRef = useCallback((node: HTMLElement | null) => {
-        if (!node) return;
-        
-        const observer = new IntersectionObserver(([entry]) => {
+    // Очистка наблюдателей
+    const cleanupObservers = useCallback(() => {
+        blockObserver.current?.disconnect();
+        blockObserver.current = null;
+        containerObserver.current?.disconnect();
+        containerObserver.current = null;
+    }, []);
+
+    // Настройка наблюдателя для блока
+    const setupBlockObserver = useCallback(() => {
+        if (!blockElement.current) return;
+
+        blockObserver.current?.disconnect();
+        blockObserver.current = new IntersectionObserver(([entry]) => {
             setIsBlockVisible(entry.isIntersecting);
-            // Если блок стал видимым - скрываем фильтры
             if (entry.isIntersecting) {
                 setShowFilters(false);
             }
         }, { threshold: 0.1 });
 
-        observer.observe(node);
-        return () => observer.disconnect();
+        blockObserver.current.observe(blockElement.current);
     }, []);
 
-    const containerRef = useCallback((node: HTMLElement | null) => {
-        if (!node) {
+    // Настройка наблюдателя для контейнера
+    const setupContainerObserver = useCallback(() => {
+        if (!containerElement.current) {
             setIsContainerVisible(false);
             return;
         }
-        
-        const observer = new IntersectionObserver(([entry]) => {
+
+        containerObserver.current?.disconnect();
+        containerObserver.current = new IntersectionObserver(([entry]) => {
             const visible = entry.isIntersecting;
             setIsContainerVisible(visible);
-            // Если контейнер скрылся - скрываем всё
             if (!visible) {
                 setIsBlockVisible(false);
                 setShowFilters(false);
             }
         }, { threshold: 0 });
 
-        observer.observe(node);
-        return () => observer.disconnect();
+        containerObserver.current.observe(containerElement.current);
     }, []);
+
+    // Рефы для элементов
+    const blockRef = useCallback((node: HTMLElement | null) => {
+        blockElement.current = node;
+        if (node) {
+            setupBlockObserver();
+        } else {
+            setIsBlockVisible(false);
+        }
+    }, [setupBlockObserver]);
+
+    const containerRef = useCallback((node: HTMLElement | null) => {
+        containerElement.current = node;
+        if (node) {
+            setupContainerObserver();
+        } else {
+            setIsContainerVisible(false);
+        }
+    }, [setupContainerObserver]);
 
     // Обработчик скролла
     const handleScroll = useCallback(() => {
@@ -58,23 +90,22 @@ export function useScrollVisibility() {
             isScrollingDown: isDown
         };
 
-        // Обновляем видимость фильтров по правилам:
-        // 1. Должны быть в контейнере (isContainerVisible)
-        // 2. Блок не должен быть виден (!isBlockVisible)
-        // 3. Для фильтров: только при скролле вниз (isDown)
         const shouldShowFilters = 
             isContainerVisible && 
             !isBlockVisible && 
-            (isDown || !showFilters); // Сохраняем состояние если скроллим вверх
-        
-        setShowFilters(shouldShowFilters);
-    }, [isContainerVisible, isBlockVisible, showFilters]);
+            isDown;
 
-    // Эффект для скролла
+        setShowFilters(shouldShowFilters);
+    }, [isContainerVisible, isBlockVisible]);
+
+    // Эффекты
     useEffect(() => {
         window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, [handleScroll]);
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            cleanupObservers();
+        };
+    }, [handleScroll, cleanupObservers]);
 
     return {
         blockRef,
