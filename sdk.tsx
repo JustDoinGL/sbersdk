@@ -1,90 +1,74 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-export function useSmartIntersection() {
+export function useScrollVisibility() {
     // Состояния видимости
-    const [isElementVisible, setIsElementVisible] = useState(false);
-    const [areFiltersVisible, setAreFiltersVisible] = useState(false);
-    
-    // Рефы
-    const elementRef = useRef<HTMLElement | null>(null);
-    const containerRef = useRef<HTMLElement | null>(null);
+    const [isBlockVisible, setIsBlockVisible] = useState(false);
+    const [isContainerVisible, setIsContainerVisible] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
     
     // Данные скролла
     const scrollData = useRef({
         lastY: 0,
-        isDown: false,
-        containerVisible: true
+        isScrollingDown: false
     });
+
+    // Рефы для элементов
+    const blockRef = useCallback((node: HTMLElement | null) => {
+        if (!node) return;
+        
+        const observer = new IntersectionObserver(([entry]) => {
+            setIsBlockVisible(entry.isIntersecting);
+            // Если блок стал видимым - скрываем фильтры
+            if (entry.isIntersecting) {
+                setShowFilters(false);
+            }
+        }, { threshold: 0.1 });
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
+
+    const containerRef = useCallback((node: HTMLElement | null) => {
+        if (!node) {
+            setIsContainerVisible(false);
+            return;
+        }
+        
+        const observer = new IntersectionObserver(([entry]) => {
+            const visible = entry.isIntersecting;
+            setIsContainerVisible(visible);
+            // Если контейнер скрылся - скрываем всё
+            if (!visible) {
+                setIsBlockVisible(false);
+                setShowFilters(false);
+            }
+        }, { threshold: 0 });
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
 
     // Обработчик скролла
     const handleScroll = useCallback(() => {
         const currentY = window.scrollY;
-        const isScrollingDown = currentY > scrollData.current.lastY;
+        const isDown = currentY > scrollData.current.lastY;
         
         scrollData.current = {
             lastY: currentY,
-            isDown: isScrollingDown,
-            containerVisible: scrollData.current.containerVisible
+            isScrollingDown: isDown
         };
 
-        // Фильтры видны только при:
-        // 1. Скролл вниз
-        // 2. Основной элемент не виден
-        // 3. Контейнер виден
-        setAreFiltersVisible(
-            !isElementVisible && 
-            isScrollingDown && 
-            scrollData.current.containerVisible
-        );
-    }, [isElementVisible]);
-
-    // Наблюдатель за элементом
-    const setElementRef = useCallback((element: HTMLElement | null) => {
-        elementRef.current = element;
+        // Обновляем видимость фильтров по правилам:
+        // 1. Должны быть в контейнере (isContainerVisible)
+        // 2. Блок не должен быть виден (!isBlockVisible)
+        // 3. Для фильтров: только при скролле вниз (isDown)
+        const shouldShowFilters = 
+            isContainerVisible && 
+            !isBlockVisible && 
+            (isDown || !showFilters); // Сохраняем состояние если скроллим вверх
         
-        if (!element) {
-            setIsElementVisible(false);
-            return;
-        }
-
-        const observer = new IntersectionObserver(([entry]) => {
-            const visible = entry.isIntersecting;
-            setIsElementVisible(visible);
-            
-            // Автоматически скрываем фильтры при появлении элемента
-            if (visible) {
-                setAreFiltersVisible(false);
-            }
-        }, { threshold: 0.1 });
-
-        observer.observe(element);
-        
-        return () => observer.disconnect();
-    }, []);
-
-    // Наблюдатель за контейнером
-    const setContainerRef = useCallback((container: HTMLElement | null) => {
-        containerRef.current = container;
-        
-        if (!container) {
-            scrollData.current.containerVisible = true;
-            return;
-        }
-
-        const observer = new IntersectionObserver(([entry]) => {
-            scrollData.current.containerVisible = entry.isIntersecting;
-            
-            // Если контейнер не виден - сбрасываем все
-            if (!entry.isIntersecting) {
-                setIsElementVisible(false);
-                setAreFiltersVisible(false);
-            }
-        }, { threshold: 0 });
-
-        observer.observe(container);
-        
-        return () => observer.disconnect();
-    }, []);
+        setShowFilters(shouldShowFilters);
+    }, [isContainerVisible, isBlockVisible, showFilters]);
 
     // Эффект для скролла
     useEffect(() => {
@@ -93,9 +77,9 @@ export function useSmartIntersection() {
     }, [handleScroll]);
 
     return {
-        setElementRef,
-        setContainerRef,
-        isElementVisible,
-        areFiltersVisible
+        blockRef,
+        containerRef,
+        showFilters,
+        showResetButton: isContainerVisible && !isBlockVisible
     };
 }
