@@ -1,46 +1,59 @@
+# lefthook.yml
 source_dir: lefthook
 
 pre-commit:
-  parallel: true
+  parallel: true  # Параллельное выполнение независимых задач
+  piped: true     # Передавать только изменённые файлы между командами
+  
   commands:
+    # 1. Форматирование изменённых файлов в src/
     format:
       tags: frontend format
-      glob: "*.{js,jsx,ts,tsx,scss,css,json}"
-      run: npm run format {staged_files}
+      description: "Format changed files in src/"
+      files: git diff --name-only --diff-filter=ACMRT HEAD "src/"
+      glob: "*.{js,jsx,ts,tsx,scss,css,json,md}"
+      run: prettier --write {files}
 
+    # 2. Линтинг JavaScript/TypeScript
     lint-js:
       tags: frontend lint
+      description: "Lint changed JS/TS files in src/"
+      files: git diff --name-only --diff-filter=ACMRT HEAD "src/"
       glob: "*.{js,jsx,ts,tsx}"
-      run: npm run lint:js {staged_files}
+      run: eslint --fix --max-warnings=0 {files}
 
+    # 3. Линтинг CSS/SCSS
     lint-css:
       tags: frontend lint
-      glob: "*.scss"
-      run: npm run lint:css {staged_files}
-
-    eslint-fix:
-      tags: frontend fix
-      files: git diff --name-only --diff-filter=d HEAD
-      glob: "*.{js,jsx,ts,tsx}"
-      run: eslint --fix {files}
-
-    stylelint-fix:
-      tags: frontend fix
-      files: git diff --name-only --diff-filter=d HEAD
-      glob: "*.scss"
+      description: "Lint changed SCSS files in src/"
+      files: git diff --name-only --diff-filter=ACMRT HEAD "src/"
+      glob: "*.{scss,css}"
       run: stylelint --fix {files}
+
+    # 4. Проверка типов TypeScript (только для ts-файлов)
+    type-check:
+      tags: frontend types
+      description: "Type check changed TS files"
+      files: git diff --name-only --diff-filter=ACMRT HEAD "src/"
+      glob: "*.{ts,tsx}"
+      run: tsc --noEmit --pretty {files}
 
 commit-msg:
   commands:
-    check-conventional-commit:
-      tags: git conventional
+    # Проверка соответствия Conventional Commits
+    check-commit-msg:
+      tags: git convention
       run: commitlint --edit
 
 scripts:
-  "check-branch.js":
-    tags: git conventional
+  # Проверка названия ветки
+  "check-branch":
     runner: node
+    tags: git branch
+    script: "./scripts/check-branch.js"
 
-  "protected-branch.js":
-    tags: git consistent
+  # Защита основных веток
+  "protected-branch":
     runner: node
+    tags: git protection
+    script: "./scripts/protected-branch.js"
