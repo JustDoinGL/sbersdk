@@ -1,91 +1,46 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+source_dir: lefthook
 
-export function useIntersection() {
-    const [isVisible, setIsVisible] = useState(false);
-    const [isVisibleFilters, setIsVisibleFilters] = useState(false);
-    const [isVisibleContainer, setIsVisibleContainer] = useState(false);
-    const [isVisibleBlock, setIsVisibleBlock] = useState(false);
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      tags: frontend format
+      glob: "*.{js,jsx,ts,tsx,scss,css,json}"
+      run: npm run format {staged_files}
 
-    const observerRef = useRef<IntersectionObserver | null>(null);
-    const observerContainerRef = useRef<IntersectionObserver | null>(null);
-    const lastScrollY = useRef(0);
-    const isScrollingDown = useRef(false);
-    const rafId = useRef<number | null>(null);
+    lint-js:
+      tags: frontend lint
+      glob: "*.{js,jsx,ts,tsx}"
+      run: npm run lint:js {staged_files}
 
-    const updateVisibilityStates = useCallback(() => {
-        setIsVisible(isVisibleContainer && !isVisibleBlock);
-        setIsVisibleFilters(isScrollingDown.current && isVisibleContainer && !isVisibleBlock);
-    }, [isVisibleContainer, isVisibleBlock]);
+    lint-css:
+      tags: frontend lint
+      glob: "*.scss"
+      run: npm run lint:css {staged_files}
 
-    const setRef = useCallback((element: HTMLElement | null) => {
-        if (observerRef.current) {
-            observerRef.current.disconnect();
-            observerRef.current = null;
-        }
+    eslint-fix:
+      tags: frontend fix
+      files: git diff --name-only --diff-filter=d HEAD
+      glob: "*.{js,jsx,ts,tsx}"
+      run: eslint --fix {files}
 
-        if (element) {
-            const observer = new IntersectionObserver(([entry]) => {
-                const isElementVisible = entry.isIntersecting;
-                setIsVisibleBlock(isElementVisible);
-                updateVisibilityStates();
-            }, { threshold: 0.1 });
+    stylelint-fix:
+      tags: frontend fix
+      files: git diff --name-only --diff-filter=d HEAD
+      glob: "*.scss"
+      run: stylelint --fix {files}
 
-            observer.observe(element);
-            observerRef.current = observer;
-        }
-    }, [updateVisibilityStates]);
+commit-msg:
+  commands:
+    check-conventional-commit:
+      tags: git conventional
+      run: commitlint --edit
 
-    const setRefContainer = useCallback((element: HTMLElement | null) => {
-        if (observerContainerRef.current) {
-            observerContainerRef.current.disconnect();
-            observerContainerRef.current = null;
-        }
+scripts:
+  "check-branch.js":
+    tags: git conventional
+    runner: node
 
-        if (element) {
-            const observer = new IntersectionObserver(([entry]) => {
-                const isContainerVisible = entry.isIntersecting;
-                setIsVisibleContainer(isContainerVisible);
-                updateVisibilityStates();
-            }, { threshold: 0 });
-
-            observer.observe(element);
-            observerContainerRef.current = observer;
-        }
-    }, [updateVisibilityStates]);
-
-    const handleScroll = useCallback(() => {
-        if (rafId.current) {
-            cancelAnimationFrame(rafId.current);
-        }
-
-        rafId.current = requestAnimationFrame(() => {
-            const currentScrollY = window.scrollY;
-            isScrollingDown.current = currentScrollY > lastScrollY.current;
-            lastScrollY.current = currentScrollY;
-            updateVisibilityStates();
-        });
-    }, [updateVisibilityStates]);
-
-    useEffect(() => {
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => {
-            window.removeEventListener('scroll', handleScroll);
-            if (rafId.current) {
-                cancelAnimationFrame(rafId.current);
-            }
-            if (observerRef.current) {
-                observerRef.current.disconnect();
-            }
-            if (observerContainerRef.current) {
-                observerContainerRef.current.disconnect();
-            }
-        };
-    }, [handleScroll]);
-
-    return {
-        setRef,
-        setRefContainer,
-        isVisible,
-        isVisibleFilters,
-    } as const;
-}
+  "protected-branch.js":
+    tags: git consistent
+    runner: node
