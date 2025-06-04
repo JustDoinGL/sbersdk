@@ -1,7 +1,4 @@
-{
-  "extends": "stylelint-config-standard-scss",
-  "rules": {
-    "indentation": 2,
-    "string-quotes": "double"
-  }
+"scripts": {
+  "stylelint": "stylelint \"**/*.{css,scss}\"",
+  "stylelint:fix": "stylelint \"**/*.{css,scss}\" --fix"
 }
