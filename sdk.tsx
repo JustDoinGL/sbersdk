@@ -1,20 +1,24 @@
 {
   "extends": "stylelint-config-standard-scss",
   "rules": {
-    "block-no-empty": null,  // Отключаем проверку пустых блоков
+    // Отключаем/настраиваем правила для глобальных функций
+    "scss/no-global-function-names": null,
     
-    "scss/dollar-variable-pattern": "^([a-z][a-z0-9]*)(-[a-z0-9]+)*$",  // kebab-case для переменных
+    // Обязательные кавычки для URL
+    "function-url-quotes": "always",
     
-    "function-url-quotes": "always",  // Обязательные кавычки для url()
+    // Паттерн для переменных (kebab-case)
+    "scss/dollar-variable-pattern": "^[a-z][a-z0-9-]*$",
     
-    // Дополнительные полезные правила
-    "selector-class-pattern": null,  // Отключаем проверку имен классов
-    "no-descending-specificity": null,  // Отключаем проверку специфичности
-    "selector-pseudo-element-no-unknown": [  // Разрешаем кастомные псевдоэлементы
-      true,
-      {
-        "ignorePseudoElements": ["/^--/", "input-placeholder"]
-      }
-    ]
+    // Паттерн для имен keyframes (kebab-case)
+    "keyframes-name-pattern": "^[a-z][a-z0-9-]*$",
+    
+    // Разрешаем переопределение shorthand свойств
+    "declaration-block-no-shorthand-property-overrides": null,
+    
+    // Дополнительные настройки для удобства
+    "block-no-empty": null,
+    "selector-class-pattern": null,
+    "no-descending-specificity": null
   }
 }
