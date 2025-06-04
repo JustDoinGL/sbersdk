@@ -1,5 +1,7 @@
-npm install --save-dev 
-  stylelint 
-  stylelint-config-standard-scss 
-  postcss-scss 
-  semver@latest
+{
+  "extends": "stylelint-config-standard-scss",
+  "rules": {
+    "indentation": 2,
+    "string-quotes": "double"
+  }
+}
