@@ -1,5 +1,5 @@
-npm install --save-dev \
-  stylelint \
-  stylelint-config-standard-scss \
-  postcss-scss \
+npm install --save-dev 
+  stylelint 
+  stylelint-config-standard-scss 
+  postcss-scss 
   semver@latest
