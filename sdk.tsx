@@ -1,20 +1,20 @@
 {
   "extends": "stylelint-config-standard-scss",
   "rules": {
-    "selector-pseudo-element-no-unknown": [
+    "block-no-empty": null,  // Отключаем проверку пустых блоков
+    
+    "scss/dollar-variable-pattern": "^([a-z][a-z0-9]*)(-[a-z0-9]+)*$",  // kebab-case для переменных
+    
+    "function-url-quotes": "always",  // Обязательные кавычки для url()
+    
+    // Дополнительные полезные правила
+    "selector-class-pattern": null,  // Отключаем проверку имен классов
+    "no-descending-specificity": null,  // Отключаем проверку специфичности
+    "selector-pseudo-element-no-unknown": [  // Разрешаем кастомные псевдоэлементы
       true,
       {
-        "ignorePseudoElements": ["/^--my-/", "input-placeholder"]
+        "ignorePseudoElements": ["/^--/", "input-placeholder"]
       }
-    ],
-    "selector-pseudo-class-no-unknown": [
-      true,
-      {
-        "ignorePseudoClasses": ["global"]
-      }
-    ],
-    "no-duplicate-selectors": null,
-    "no-descending-specificity": null,
-    "selector-class-pattern": null
+    ]
   }
 }
