@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 
-export const useSafariOrIphoneScrollToRef = () => {
+export const useIosScrollToRef = () => {
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -11,12 +11,12 @@ export const useSafariOrIphoneScrollToRef = () => {
     };
   }, []);
 
-  const isIphone = () => /iPhone/i.test(navigator.userAgent);
+  const isIphoneOrIpad = () => /iPhone|iPad/i.test(navigator.userAgent);
   const isSafari = () =>
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
   const scrollToRef = useCallback((ref: RefObject<HTMLElement | null>) => {
-    if (!(isIphone() || isSafari())) return;
+    if (!(isIphoneOrIpad() || isSafari())) return;
 
     const scroll = () => {
       ref.current?.scrollIntoView({
@@ -34,4 +34,3 @@ export const useSafariOrIphoneScrollToRef = () => {
 
   return scrollToRef;
 };
-
