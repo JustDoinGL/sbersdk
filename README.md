@@ -1,12 +1,18 @@
-.img-container {
-  width: 400px;  /* Ширина контейнера (можно в %) */
-  aspect-ratio: 4 / 3;  /* Соотношение 4:3 */
-  overflow: hidden;  /* Обрезаем всё, что выходит за границы */
+button {
+    transition: background-color 0.2s;
+    -webkit-tap-highlight-color: transparent; /* Убирает подсветку на iOS */
+    touch-action: manipulation; /* Улучшает отклик касаний */
 }
 
-.img-container img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;  /* Заполняет контейнер с обрезкой */
-  object-position: left;  /* Обрезает справа, оставляя левую часть */
+/* Десктопы (мышка) */
+@media (hover: hover) {
+    button:hover { background-color: #hover-color; }
+    button:active { background-color: #active-color; }
+}
+
+/* Мобилки (тач) */
+@media (hover: none) {
+    button:active {
+        background-color: #active-color;
+    }
 }
