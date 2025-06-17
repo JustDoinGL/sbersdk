@@ -1,98 +1,5 @@
 /* 
 ===========================================
-1. Two Sum (Сумма двух чисел)
-===========================================
-Задача: Найти в массиве два числа, которые в сумме дают заданное значение (target), 
-и вернуть их индексы. Гарантируется, что решение существует, и оно единственное.
-
-Пример:
-Вход: nums = [2, 7, 11, 15], target = 9
-Выход: [0, 1] (потому что nums[0] + nums[1] = 2 + 7 = 9)
-*/
-var twoSum = function (nums, target) {
-  // Реализация здесь
-};
-
-// Тест-кейсы
-console.log("1. Two Sum:");
-console.log(twoSum([2, 7, 11, 15], 9)); // [0, 1]
-console.log(twoSum([3, 2, 4], 6)); // [1, 2]
-console.log(twoSum([3, 3], 6)); // [0, 1]
-console.log(twoSum([-1, -2, -3, -4], -6)); // [1, 3]
-console.log(twoSum([1, 2, 3], 10)); // [] (нет решения)
-
-/* 
-===========================================
-2. Palindrome Number (Число-палиндром)
-===========================================
-Задача: Определить, является ли число палиндромом 
-(читается одинаково слева направо и справа налево).
-
-Пример:
-Вход: x = 121
-Выход: true
-*/
-var isPalindrome = function (x) {
-  // Реализация здесь
-};
-
-// Тест-кейсы
-console.log("\n2. Palindrome Number:");
-console.log(isPalindrome(121)); // true
-console.log(isPalindrome(-121)); // false (минус не считается)
-console.log(isPalindrome(10)); // false
-console.log(isPalindrome(12321)); // true
-console.log(isPalindrome(0)); // true
-
-/* 
-===========================================
-3. Valid Parentheses (Валидные скобки)
-===========================================
-Задача: Проверить, правильно ли расставлены скобки в строке. 
-Допустимые типы: '()', '[]', '{}'.
-
-Пример:
-Вход: s = "()[]{}"
-Выход: true
-*/
-var isValid = function (s) {
-  // Реализация здесь
-};
-
-// Тест-кейсы
-console.log("\n3. Valid Parentheses:");
-console.log(isValid("()")); // true
-console.log(isValid("()[]{}")); // true
-console.log(isValid("(]")); // false
-console.log(isValid("([)]")); // false
-console.log(isValid("{[]}")); // true
-
-/* 
-===========================================
-4. Reverse String (Переворот строки)
-===========================================
-Задача: Перевернуть массив символов строки на месте (без выделения дополнительной памяти).
-
-Пример:
-Вход: s = ["h","e","l","l","o"]
-Выход: ["o","l","l","e","h"]
-*/
-var reverseString = function (s) {
-  // Реализация здесь
-};
-
-// Тест-кейсы
-console.log("\n4. Reverse String:");
-let str1 = ["h", "e", "l", "l", "o"];
-reverseString(str1);
-console.log(str1); // ["o","l","l","e","h"]
-
-let str2 = ["H", "a", "n", "n", "a", "h"];
-reverseString(str2);
-console.log(str2); // ["h","a","n","n","a","H"]
-
-/* 
-===========================================
 5. Merge Two Sorted Lists (Слияние двух отсортированных списков)
 ===========================================
 Задача: Объединить два отсортированных связных списка в один отсортированный.
@@ -115,25 +22,6 @@ console.log("\n5. Merge Two Sorted Lists:");
 let list1 = new ListNode(1, new ListNode(2, new ListNode(4)));
 let list2 = new ListNode(1, new ListNode(3, new ListNode(4)));
 console.log(printList(mergeTwoLists(list1, list2))); // [1,1,2,3,4,4]
-
-/* 
-===========================================
-6. Maximum Subarray (Максимальный подмассив)
-===========================================
-Задача: Найти подмассив (последовательность элементов) с максимальной суммой.
-
-Пример:
-Вход: nums = [-2,1,-3,4,-1,2,1,-5,4]
-Выход: 6 (подмассив [4,-1,2,1])
-*/
-var maxSubArray = function (nums) {
-  // Реализация здесь
-};
-
-// Тест-кейсы
-console.log("\n6. Maximum Subarray:");
-console.log(maxSubArray([-2, 1, -3, 4, -1, 2, 1, -5, 4])); // 6
-console.log(maxSubArray([1])); // 1
 
 /* 
 ===========================================
@@ -216,3 +104,113 @@ var singleNumber = function (nums) {
 console.log("\n10. Single Number:");
 console.log(singleNumber([2, 2, 1])); // 1
 console.log(singleNumber([4, 1, 2, 1, 2])); // 4
+
+
+/**
+ * Задачи на технику Two Pointers с тест-кейсами, шаблонами функций и консоль-логами
+ */
+
+/**
+ * 1. Two Sum II - Input Array Is Sorted
+ */
+function twoSumSorted(numbers, target) {
+    // Ваш код здесь
+}
+
+// Тестирование
+console.log(twoSumSorted([2,7,11,15], 9)); // Должно вывести: [1,2]
+console.log(twoSumSorted([2,3,4], 6));    // Должно вывести: [1,3]
+console.log(twoSumSorted([-1,0], -1));    // Должно вывести: [1,2]
+
+/**
+ * 2. Container With Most Water
+ */
+function maxWaterContainer(height) {
+    // Ваш код здесь
+}
+
+// Тестирование
+console.log(maxWaterContainer([1,8,6,2,5,4,8,3,7])); // Должно вывести: 49
+console.log(maxWaterContainer([1,1]));               // Должно вывести: 1
+console.log(maxWaterContainer([4,3,2,1,4]));        // Должно вывести: 16
+
+/**
+ * 3. Remove Duplicates from Sorted Array
+ */
+function removeDuplicates(nums) {
+    // Ваш код здесь (изменяет исходный массив)
+    return 0; // Замените на реальный результат
+}
+
+// Тестирование
+let nums1 = [1,1,2];
+console.log(removeDuplicates(nums1), nums1); // Должно вывести: 2 [1,2,_]
+let nums2 = [0,0,1,1,1,2,2,3,3,4];
+console.log(removeDuplicates(nums2), nums2); // Должно вывести: 5 [0,1,2,3,4,_,_,_,_,_]
+console.log(removeDuplicates([1]));         // Должно вывести: 1 [1]
+
+/**
+ * 4. Move Zeroes
+ */
+function moveZeroes(nums) {
+    // Ваш код здесь (изменяет исходный массив)
+}
+
+// Тестирование
+let zeros1 = [0,1,0,3,12];
+moveZeroes(zeros1);
+console.log(zeros1); // Должно вывести: [1,3,12,0,0]
+let zeros2 = [0];
+moveZeroes(zeros2);
+console.log(zeros2); // Должно вывести: [0]
+let zeros3 = [1,0,1];
+moveZeroes(zeros3);
+console.log(zeros3); // Должно вывести: [1,1,0]
+
+/**
+ * 5. Valid Palindrome
+ */
+function isPalindrome(s) {
+    // Ваш код здесь
+}
+
+// Тестирование
+console.log(isPalindrome("A man, a plan, a canal: Panama")); // Должно вывести: true
+console.log(isPalindrome("race a car"));                    // Должно вывести: false
+console.log(isPalindrome(" "));                             // Должно вывести: true
+
+/**
+ * 6. 3Sum
+ */
+function threeSum(nums) {
+    // Ваш код здесь
+}
+
+// Тестирование
+console.log(threeSum([-1,0,1,2,-1,-4])); // Должно вывести: [[-1,-1,2],[-1,0,1]]
+console.log(threeSum([0,1,1]));          // Должно вывести: []
+console.log(threeSum([0,0,0]));          // Должно вывести: [[0,0,0]]
+
+/**
+ * 7. Trapping Rain Water
+ */
+function trapRainWater(height) {
+    // Ваш код здесь
+}
+
+// Тестирование
+console.log(trapRainWater([0,1,0,2,1,0,1,3,2,1,2,1])); // Должно вывести: 6
+console.log(trapRainWater([4,2,0,3,2,5]));             // Должно вывести: 9
+console.log(trapRainWater([4,2,3]));                   // Должно вывести: 1
+
+/**
+ * 8. Subarray Product Less Than K
+ */
+function numSubarrayProductLessThanK(nums, k) {
+    // Ваш код здесь
+}
+
+// Тестирование
+console.log(numSubarrayProductLessThanK([10,5,2,6], 100)); // Должно вывести: 8
+console.log(numSubarrayProductLessThanK([1,2,3], 0));      // Должно вывести: 0
+console.log(numSubarrayProductLessThanK([1,1,1], 2));      // Должно вывести: 6
