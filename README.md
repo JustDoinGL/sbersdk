@@ -1,10 +1,11 @@
+max-height: 90vh; 
 max-height: 90dvh;
-max-height: 90vh;
-/* overflow-y: scroll; */ - del
+max-height: 90dvh;
+overflow-x: scroll;
+overflow-y: hidden;
 
-
-
-overflow-y: overlay;
-/* max-height: 60%; */
+ul =>
+overflow-y: scroll;
+max-height: 40vh;
+max-height: 50dvh;
 height: 100%;
-padding-bottom: 190px;
