@@ -1,69 +1,77 @@
-import { useState, useEffect, useRef } from 'react';
+/*
+Смерджить два массива с покупками. 
+Массивы приходят на вход всегда отсортированными по id. 
+У каждой покупки свой уникальной id (для бананов это 1, для апельсинов 2 и т.д.) .
+Нужно на выходе получить массив уникальных отсортированных по id покупок, с минимальной ценой.
+Сложность по времени не должна быть больше O(n)
+*/
 
-type FetchOptions = RequestInit;
 
-type UseFetchResult<T> = {
-  data: T | null;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => Promise<void>;
-  abort: () => void;
-};
 
-export function useFetch<T>(
-  url: string,
-  options?: FetchOptions
-): UseFetchResult<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+const merge = (arr1, arr2) => {
+  const mapa = []
+  const arr = [...purchases1, ...purchases2]
 
-  const fetchData = async () => {
-    setIsLoading(true);
-    setError(null);
+  arr.forEach((el) => {
+    // if (mapa[el.id]) {
+      
+    //   if (mapa[el.id].price > el.price) {
+    //     mapa[el.id] = el
+    //   }
+    // } else {
+    //   mapa[el.id] = el
+    // }
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: abortController.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+    if (mapa[el.id]) {
+      if ( mapa[el.id].price > el.price) {
+        mapa[el.id] = el
       }
-
-      const jsonData: T = await response.json();
-      setData(jsonData);
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        setError(err);
-      }
-    } finally {
-      setIsLoading(false);
+      
+    } else {
+       mapa[el.id] = el
     }
-  };
+  })
 
-  useEffect(() => {
-    fetchData();
+  
 
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, [url, options]);
-
-  return {
-    data,
-    isLoading,
-    error,
-    refetch: fetchData,
-    abort: () => abortControllerRef.current?.abort(),
-  };
+    
+  return mapa.filter((el) => el)
 }
+
+const purchases1 = [
+    { id: 1, title: 'бананы', price: 100},
+    { id: 2, title: 'апельсины', price: 500},
+    { id: 3, title: 'мандарины', price: 500},
+    { id: 3, title: 'мандарины', price: 100},
+    { id: 4, title: 'ананасы', price: 500},
+    { id: 5, title: 'яблоки', price: 500},
+    { id: 6, title: 'груши', price: 500},
+    { id: 8, title: 'киви', price: 800},
+    { id: 9, title: 'манго', price: 900},
+]
+
+const purchases2 = [
+    { id: 1, title: 'бананы', price: 600},
+    { id: 1, title: 'бананы', price: 700},
+    { id: 3, title: 'мандарины', price: 100},
+    { id: 3, title: 'мандарины', price: 500},
+    { id: 4, title: 'ананасы', price: 500},
+    { id: 6, title: 'груши', price: 50},
+    { id: 6, title: 'груши', price: 1000},
+    { id: 7, title: 'черешня', price: 1000},
+]
+
+console.log(merge(purchases1, purchases2))
+/*
+[
+    { id: 1, title: 'бананы', price: 100},
+    { id: 2, title: 'апельсины', price: 500},
+    { id: 3, title: 'мандарины', price: 100},
+    { id: 4, title: 'ананасы', price: 500},
+    { id: 5, title: 'яблоки', price: 500},
+    { id: 6, title: 'груши', price: 50},
+    { id: 7, title: 'черешня', price: 1000},
+    { id: 8, title: 'киви', price: 800},
+    { id: 9, title: 'манго', price: 900},
+]
+*/
