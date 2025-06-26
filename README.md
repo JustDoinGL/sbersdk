@@ -1,11 +1,10 @@
-max-height: 90vh; 
-max-height: 90dvh;
-max-height: 90dvh;
-overflow-x: scroll;
-overflow-y: hidden;
+// Получить все cookies
+const cookies = document.cookie;
 
-ul =>
-overflow-y: scroll;
-max-height: 40vh;
-max-height: 50dvh;
-height: 100%;
+// Проверить наличие cookie, начинающейся с "ban"
+const hasBanCookie = cookies.split(';').some(cookie => {
+  const [name] = cookie.trim().split('=');
+  return name.startsWith('ban');
+});
+
+console.log('Есть cookie с префиксом "ban":', hasBanCookie);
