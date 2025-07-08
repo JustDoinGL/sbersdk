@@ -1,61 +1,66 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const CustomScrollComponent = () => {
-  const [isHorizontalMode, setIsHorizontalMode] = useState(false);
-  const [isHorizontalEnd, setIsHorizontalEnd] = useState(false);
+const SmoothScrollTransition = () => {
+  const [scrollMode, setScrollMode] = useState('vertical');
   const containerRef = useRef(null);
-  const horizontalContentRef = useRef(null);
+  const contentRef = useRef(null);
+  const horizontalSectionRef = useRef(null);
+  const isScrolling = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
-    const horizontalContent = horizontalContentRef.current;
+    const horizontalSection = horizontalSectionRef.current;
+    const content = contentRef.current;
 
-    if (!container || !horizontalContent) return;
+    if (!container || !horizontalSection || !content) return;
 
     const handleWheel = (e) => {
-      if (!isHorizontalMode) return;
+      if (isScrolling.current) return;
+      
+      // Проверяем, находимся ли мы в горизонтальной секции
+      const rect = horizontalSection.getBoundingClientRect();
+      const isInHorizontalSection = rect.top <= 0 && rect.bottom > 0;
 
-      // Если мы в горизонтальном режиме и это вертикальный скролл
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault();
-        
-        const isAtEnd = horizontalContent.scrollLeft + 
-                       horizontalContent.clientWidth >= 
-                       horizontalContent.scrollWidth - 10;
+      if (isInHorizontalSection && scrollMode !== 'horizontal') {
+        setScrollMode('horizontal');
+        return;
+      }
+
+      if (!isInHorizontalSection && scrollMode !== 'vertical') {
+        setScrollMode('vertical');
+        return;
+      }
+
+      if (scrollMode === 'horizontal') {
+        // Проверяем, достигли ли мы конца горизонтального скролла
+        const isAtEnd = content.scrollLeft + content.clientWidth >= content.scrollWidth - 10;
         
         if (!isAtEnd) {
-          // Преобразуем вертикальный скролл в горизонтальный
-          horizontalContent.scrollLeft += e.deltaY;
-          setIsHorizontalEnd(false);
+          e.preventDefault();
+          isScrolling.current = true;
+          
+          // Плавный горизонтальный скролл
+          content.scrollBy({
+            left: e.deltaY,
+            behavior: 'smooth'
+          });
+
+          setTimeout(() => {
+            isScrolling.current = false;
+          }, 200);
         } else {
-          setIsHorizontalEnd(true);
+          // Переключаемся обратно на вертикальный скролл
+          setScrollMode('vertical');
         }
       }
     };
 
-    const handleScroll = () => {
-      const thirdBlock = document.getElementById('third-block');
-      if (!thirdBlock) return;
-
-      const rect = thirdBlock.getBoundingClientRect();
-      const isThirdBlockVisible = rect.top <= 0 && rect.bottom <= window.innerHeight;
-
-      if (isThirdBlockVisible && !isHorizontalMode) {
-        setIsHorizontalMode(true);
-        setIsHorizontalEnd(false);
-      } else if (!isThirdBlockVisible && isHorizontalMode) {
-        setIsHorizontalMode(false);
-      }
-    };
-
     container.addEventListener('wheel', handleWheel, { passive: false });
-    container.addEventListener('scroll', handleScroll);
 
     return () => {
       container.removeEventListener('wheel', handleWheel);
-      container.removeEventListener('scroll', handleScroll);
     };
-  }, [isHorizontalMode]);
+  }, [scrollMode]);
 
   return (
     <div 
@@ -63,7 +68,8 @@ const CustomScrollComponent = () => {
       style={{
         height: '100vh',
         overflowY: 'auto',
-        overflowX: 'hidden'
+        overflowX: 'hidden',
+        scrollBehavior: 'smooth'
       }}
     >
       {/* Блок 1 */}
@@ -80,50 +86,49 @@ const CustomScrollComponent = () => {
 
       {/* Блок 3 с горизонтальным контентом */}
       <div 
-        id="third-block"
+        ref={horizontalSectionRef}
         style={{ 
           height: '100vh', 
           backgroundColor: '#ddddff', 
           padding: '20px',
-          overflowX: isHorizontalMode ? 'auto' : 'hidden',
+          overflowX: scrollMode === 'horizontal' ? 'auto' : 'hidden',
           overflowY: 'hidden'
         }}
       >
         <div 
-          ref={horizontalContentRef}
+          ref={contentRef}
           style={{
             width: '200vw',
             height: '100%',
-            display: 'flex'
+            display: 'flex',
+            transition: 'transform 0.3s ease'
           }}
         >
           <div style={{ minWidth: '100vw', padding: '20px' }}>
-            <h1>Блок 3 - Левая часть</h1>
-            <p>Скролл вниз = скролл вправо →</p>
+            <h1>Горизонтальная секция (левая часть)</h1>
+            <p>Скролл вниз теперь двигает вправо →</p>
           </div>
           <div style={{ minWidth: '100vw', padding: '20px' }}>
-            <h1>Блок 3 - Правая часть</h1>
+            <h1>Горизонтальная секция (правая часть)</h1>
             <p>Продолжайте скроллить вниз (вправо) →</p>
-            {isHorizontalEnd && <p>Теперь можно скроллить вниз ↓</p>}
+            {scrollMode === 'vertical' && <p>Теперь можно скроллить вниз ↓</p>}
           </div>
         </div>
       </div>
 
-      {/* Блоки после третьего (появляются после горизонтального скролла) */}
-      {isHorizontalEnd && (
-        <>
-          <div style={{ height: '100vh', backgroundColor: '#ffffdd', padding: '20px' }}>
-            <h1>Блок 4</h1>
-            <p>Снова обычный скролл вниз ↓</p>
-          </div>
-          <div style={{ height: '100vh', backgroundColor: '#ffddff', padding: '20px' }}>
-            <h1>Блок 5</h1>
-            <p>Последний блок</p>
-          </div>
-        </>
-      )}
+      {/* Блок 4 (появляется после горизонтального скролла) */}
+      <div style={{ height: '100vh', backgroundColor: '#ffffdd', padding: '20px' }}>
+        <h1>Блок 4</h1>
+        <p>Снова обычный скролл вниз ↓</p>
+      </div>
+
+      {/* Блок 5 */}
+      <div style={{ height: '100vh', backgroundColor: '#ffddff', padding: '20px' }}>
+        <h1>Блок 5</h1>
+        <p>Последний блок</p>
+      </div>
     </div>
   );
 };
 
-export default CustomScrollComponent;
+export default SmoothScrollTransition;
