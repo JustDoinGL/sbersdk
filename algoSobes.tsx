@@ -1,67 +1,76 @@
-const merge = (arr1, arr2) => {
-  const result = [];
-  const map = {};
-  
-  // Обрабатываем оба массива
-  let i = 0, j = 0;
-  while (i < arr1.length && j < arr2.length) {
-    if (arr1[i].id <= arr2[j].id) {
-      processElement(arr1[i], map, result);
-      i++;
-    } else {
-      processElement(arr2[j], map, result);
-      j++;
-    }
-  }
-  
-  // Обрабатываем оставшиеся элементы в arr1
-  while (i < arr1.length) {
-    processElement(arr1[i], map, result);
-    i++;
-  }
-  
-  // Обрабатываем оставшиеся элементы в arr2
-  while (j < arr2.length) {
-    processElement(arr2[j], map, result);
-    j++;
-  }
-  
-  return result;
+import { useEffect, useRef } from 'react';
+import cx from 'classnames';
+
+interface TopOffersProps {
+  id?: string;
+  title: string;
+  items?: any[]; // Уточните тип для items
+  className?: string;
 }
 
-// Вспомогательная функция для обработки элемента
-function processElement(el, map, result) {
-  if (!map[el.id]) {
-    // Если элемент с таким id еще не встречался, добавляем его
-    map[el.id] = el;
-    result.push(el);
-  } else if (map[el.id].price > el.price) {
-    // Если нашли элемент с меньшей ценой, обновляем
-    map[el.id].price = el.price;
-  }
-}
+const useHorizontalScroll = () => {
+  const ref = useRef<HTMLDivElement>(null);
 
-const purchases1 = [
-    { id: 1, title: 'бананы', price: 100},
-    { id: 2, title: 'апельсины', price: 500},
-    { id: 3, title: 'мандарины', price: 500},
-    { id: 3, title: 'мандарины', price: 100},
-    { id: 4, title: 'ананасы', price: 500},
-    { id: 5, title: 'яблоки', price: 500},
-    { id: 6, title: 'груши', price: 500},
-    { id: 8, title: 'киви', price: 800},
-    { id: 9, title: 'манго', price: 900},
-]
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
 
-const purchases2 = [
-    { id: 1, title: 'бананы', price: 600},
-    { id: 1, title: 'бананы', price: 700},
-    { id: 3, title: 'мандарины', price: 100},
-    { id: 3, title: 'мандарины', price: 500},
-    { id: 4, title: 'ананасы', price: 500},
-    { id: 6, title: 'груши', price: 50},
-    { id: 6, title: 'груши', price: 1000},
-    { id: 7, title: 'черешня', price: 1000},
-]
+    const transformScroll = (event: WheelEvent) => {
+      if (!event.deltaY) return;
 
-console.log(merge(purchases1, purchases2))
+      element.scrollLeft += event.deltaY + event.deltaX;
+      event.preventDefault();
+    };
+
+    element.addEventListener('wheel', transformScroll);
+
+    return () => {
+      element.removeEventListener('wheel', transformScroll);
+    };
+  }, []);
+
+  return ref;
+};
+
+const TopOffers = ({ id = 'TopOffers', title, items, className }: TopOffersProps) => {
+  const ref = useHorizontalScroll();
+
+  return (
+    <div className={cx('TopOffers', className)} id={id}>
+      <div className={cx('TopOffers_inner')}>
+        <h3 className={cx('TopOffers_title')}>{title}</h3>
+
+        <div
+          ref={ref}
+          style={{
+            overflowX: 'auto',
+            width: '90vw',
+            display: 'flex',
+            gap: '10px',
+            whiteSpace: 'nowrap',
+            scrollBehavior: 'smooth',
+          }}
+        >
+          {Array.from({ length: 10 }).map((_, idx) => (
+            <div 
+              key={idx} 
+              style={{ 
+                minWidth: '300px', 
+                height: '400px',
+                backgroundColor: '#eee',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px'
+              }}
+            >
+              {idx + 1}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TopOffers;
