@@ -1,125 +1,72 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 
-interface VisibilityProviderProps {
-  children: React.ReactNode;
-}
-
-interface ScrollRefs {
-  left: React.RefObject<HTMLDivElement>;
-  right: React.RefObject<HTMLDivElement>;
-}
-
-const useScrollVisibility = () => {
+const useHorizontalScroll = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const leftArrowRef = useRef<HTMLDivElement>(null);
-  const rightArrowRef = useRef<HTMLDivElement>(null);
-  const [isLeftVisible, setIsLeftVisible] = useState(false);
-  const [isRightVisible, setIsRightVisible] = useState(false);
-  const [isInViewport, setIsInViewport] = useState(false);
 
-  // Horizontal scroll effect
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
-
-    const handleWheel = (event: WheelEvent) => {
-      if (!event.deltaY) return;
-      element.scrollLeft += event.deltaY * 0.5;
-      event.preventDefault();
-    };
-
-    element.addEventListener('wheel', handleWheel);
-    return () => element.removeEventListener('wheel', handleWheel);
-  }, []);
-
-  // Visibility observers for arrows and container
   useEffect(() => {
     const container = containerRef.current;
-    const leftArrow = leftArrowRef.current;
-    const rightArrow = rightArrowRef.current;
+    if (!container) return;
 
-    if (!container || !leftArrow || !rightArrow) return;
-
-    const containerObserver = new IntersectionObserver(
-      ([entry]) => {
-        setIsInViewport(entry.isIntersecting);
-      },
-      {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.1,
+    // Обработчик для колеса мыши (десктоп)
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        // Если скролл вертикальный, предотвращаем и делаем горизонтальным
+        e.preventDefault();
+        container.scrollLeft += e.deltaY;
       }
-    );
+    };
 
-    const leftObserver = new IntersectionObserver(
-      ([entry]) => {
-        setIsLeftVisible(entry.isIntersecting);
-      },
-      {
-        root: container,
-        threshold: 0.1,
-      }
-    );
+    // Обработчик для касаний (мобильные)
+    let startX: number;
+    let scrollLeft: number;
 
-    const rightObserver = new IntersectionObserver(
-      ([entry]) => {
-        setIsRightVisible(entry.isIntersecting);
-      },
-      {
-        root: container,
-        threshold: 0.1,
-      }
-    );
+    const handleTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].pageX;
+      scrollLeft = container.scrollLeft;
+    };
 
-    containerObserver.observe(container);
-    leftObserver.observe(leftArrow);
-    rightObserver.observe(rightArrow);
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!startX) return;
+      e.preventDefault(); // Предотвращаем стандартный скролл
+      const x = e.touches[0].pageX;
+      const walk = (x - startX) * 2; // Чувствительность (можно регулировать)
+      container.scrollLeft = scrollLeft - walk;
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     return () => {
-      containerObserver.unobserve(container);
-      leftObserver.unobserve(leftArrow);
-      rightObserver.unobserve(rightArrow);
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
     };
   }, []);
 
-  const VisibilityProvider: React.FC<VisibilityProviderProps> = ({ children }) => {
-    return (
-      <div ref={containerRef} style={{ overflowX: 'auto', position: 'relative' }}>
-        <div ref={leftArrowRef} style={{ position: 'absolute', left: 0 }} />
-        {children}
-        <div ref={rightArrowRef} style={{ position: 'absolute', right: 0 }} />
-      </div>
-    );
-  };
-
-  return {
-    VisibilityProvider,
-    containerRef,
-    isLeftVisible,
-    isRightVisible,
-    isInViewport,
-  };
+  return containerRef;
 };
 
-interface TopOffersProps {
-  id: string;
-  title: string;
-}
-
-const TopOffers: React.FC<TopOffersProps> = ({ id, title }) => {
-  const { VisibilityProvider, containerRef, isLeftVisible, isRightVisible, isInViewport } = useScrollVisibility();
+// Пример использования
+const HorizontalScrollContainer = () => {
+  const scrollRef = useHorizontalScroll();
 
   return (
-    <section id={id}>
-      <h2>{title}</h2>
-      <VisibilityProvider>
-        {/* Your content here */}
-        <div style={{ display: 'flex', whiteSpace: 'nowrap' }}>
-          {/* Items that will be horizontally scrolled */}
+    <div
+      ref={scrollRef}
+      style={{
+        display: 'flex',
+        overflowX: 'auto',
+        scrollSnapType: 'x mandatory',
+        gap: '16px',
+        padding: '8px',
+      }}
+    >
+      {[...Array(10)].map((_, i) => (
+        <div key={i} style={{ scrollSnapAlign: 'start', minWidth: '200px', height: '100px', background: '#ddd' }}>
+          Item {i + 1}
         </div>
-      </VisibilityProvider>
-    </section>
+      ))}
+    </div>
   );
 };
-
-export default TopOffers;
