@@ -1,81 +1,125 @@
-/*
-Смерджить два массива с покупками. 
-Массивы приходят на вход всегда отсортированными по id. 
-У каждой покупки свой уникальной id (для бананов это 1, для апельсинов 2 и т.д.) .
-Нужно на выходе получить массив уникальных отсортированных по id покупок, с минимальной ценой.
-Сложность по времени не должна быть больше O(n)
-*/
+import React, { useRef, useEffect, useState } from 'react';
 
-const merge = (arr1, arr2) => {
-  const result = [];
-  let i = 0;
-  let j = 0;
+interface VisibilityProviderProps {
+  children: React.ReactNode;
+}
 
-  while (i < arr1.length && j < arr2.length) {
-    if (arr1[i].id < arr2[j].id) {
-      result.push(arr1[i]);
-      i++;
-    } else if (arr1[i].id > arr2[j].id) {
-      result.push(arr2[j]);
-      j++;
-    } else {
-      // Если id одинаковые, выбираем с минимальной ценой
-      const minPriceItem = arr1[i].price < arr2[j].price ? arr1[i] : arr2[j];
-      result.push(minPriceItem);
-      i++;
-      j++;
-    }
-  }
+interface ScrollRefs {
+  left: React.RefObject<HTMLDivElement>;
+  right: React.RefObject<HTMLDivElement>;
+}
 
-  // Добавляем оставшиеся элементы из arr1
-  while (i < arr1.length) {
-    result.push(arr1[i]);
-    i++;
-  }
+const useScrollVisibility = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const leftArrowRef = useRef<HTMLDivElement>(null);
+  const rightArrowRef = useRef<HTMLDivElement>(null);
+  const [isLeftVisible, setIsLeftVisible] = useState(false);
+  const [isRightVisible, setIsRightVisible] = useState(false);
+  const [isInViewport, setIsInViewport] = useState(false);
 
-  // Добавляем оставшиеся элементы из arr2
-  while (j < arr2.length) {
-    result.push(arr2[j]);
-    j++;
-  }
+  // Horizontal scroll effect
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
 
-  return result;
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.deltaY) return;
+      element.scrollLeft += event.deltaY * 0.5;
+      event.preventDefault();
+    };
+
+    element.addEventListener('wheel', handleWheel);
+    return () => element.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  // Visibility observers for arrows and container
+  useEffect(() => {
+    const container = containerRef.current;
+    const leftArrow = leftArrowRef.current;
+    const rightArrow = rightArrowRef.current;
+
+    if (!container || !leftArrow || !rightArrow) return;
+
+    const containerObserver = new IntersectionObserver(
+      ([entry]) => {
+        setIsInViewport(entry.isIntersecting);
+      },
+      {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0.1,
+      }
+    );
+
+    const leftObserver = new IntersectionObserver(
+      ([entry]) => {
+        setIsLeftVisible(entry.isIntersecting);
+      },
+      {
+        root: container,
+        threshold: 0.1,
+      }
+    );
+
+    const rightObserver = new IntersectionObserver(
+      ([entry]) => {
+        setIsRightVisible(entry.isIntersecting);
+      },
+      {
+        root: container,
+        threshold: 0.1,
+      }
+    );
+
+    containerObserver.observe(container);
+    leftObserver.observe(leftArrow);
+    rightObserver.observe(rightArrow);
+
+    return () => {
+      containerObserver.unobserve(container);
+      leftObserver.unobserve(leftArrow);
+      rightObserver.unobserve(rightArrow);
+    };
+  }, []);
+
+  const VisibilityProvider: React.FC<VisibilityProviderProps> = ({ children }) => {
+    return (
+      <div ref={containerRef} style={{ overflowX: 'auto', position: 'relative' }}>
+        <div ref={leftArrowRef} style={{ position: 'absolute', left: 0 }} />
+        {children}
+        <div ref={rightArrowRef} style={{ position: 'absolute', right: 0 }} />
+      </div>
+    );
+  };
+
+  return {
+    VisibilityProvider,
+    containerRef,
+    isLeftVisible,
+    isRightVisible,
+    isInViewport,
+  };
 };
 
-const purchases1 = [
-  { id: 1, title: "бананы", price: 100 },
-  { id: 2, title: "апельсины", price: 500 },
-  { id: 3, title: "мандарины", price: 500 },
-  { id: 3, title: "мандарины", price: 100 },
-  { id: 4, title: "ананасы", price: 500 },
-  { id: 5, title: "яблоки", price: 500 },
-  { id: 6, title: "груши", price: 500 },
-  { id: 8, title: "киви", price: 800 },
-  { id: 9, title: "манго", price: 900 },
-];
+interface TopOffersProps {
+  id: string;
+  title: string;
+}
 
-const purchases2 = [
-  { id: 1, title: "бананы", price: 600 },
-  { id: 1, title: "бананы", price: 700 },
-  { id: 3, title: "мандарины", price: 100 },
-  { id: 3, title: "мандарины", price: 500 },
-  { id: 4, title: "ананасы", price: 500 },
-  { id: 6, title: "груши", price: 50 },
-  { id: 6, title: "груши", price: 1000 },
-  { id: 7, title: "черешня", price: 1000 },
-];
+const TopOffers: React.FC<TopOffersProps> = ({ id, title }) => {
+  const { VisibilityProvider, containerRef, isLeftVisible, isRightVisible, isInViewport } = useScrollVisibility();
 
-console.log(merge(purchases1, purchases2));
+  return (
+    <section id={id}>
+      <h2>{title}</h2>
+      <VisibilityProvider>
+        {/* Your content here */}
+        <div style={{ display: 'flex', whiteSpace: 'nowrap' }}>
+          {/* Items that will be horizontally scrolled */}
+        </div>
+      </VisibilityProvider>
+    </section>
+  );
+};
 
-// [
-//     { id: 1, title: 'бананы', price: 100},
-//     { id: 2, title: 'апельсины', price: 500},
-//     { id: 3, title: 'мандарины', price: 100},
-//     { id: 4, title: 'ананасы', price: 500},
-//     { id: 5, title: 'яблоки', price: 500},
-//     { id: 6, title: 'груши', price: 50},
-//     { id: 7, title: 'черешня', price: 1000},
-//     { id: 8, title: 'киви', price: 800},
-//     { id: 9, title: 'манго', price: 900},
-// ]
-
+export default TopOffers;
