@@ -1,76 +1,86 @@
-import { useEffect, useRef } from 'react';
-import cx from 'classnames';
+import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import classNames from 'classnames/bind';
+import styles from './styles.module.css';
+import { useAnimation, useInView, motion } from 'framer-motion'; // Исправлен импорт из 'motion/react' на 'framer-motion'
 
-interface TopOffersProps {
-  id?: string;
-  title: string;
-  items?: any[]; // Уточните тип для items
-  className?: string;
-}
+const cx = classNames.bind(styles);
+const CLASS_NAME = 'SlideSerializer';
 
-const useHorizontalScroll = () => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const transformScroll = (event: WheelEvent) => {
-      if (!event.deltaY) return;
-
-      element.scrollLeft += event.deltaY + event.deltaX;
-      event.preventDefault();
-    };
-
-    element.addEventListener('wheel', transformScroll);
-
-    return () => {
-      element.removeEventListener('wheel', transformScroll);
-    };
-  }, []);
-
-  return ref;
+type TSectionProps = {
+    item: React.ReactNode;
+    segment: string;
+    index: number;
+    isLast: boolean;
+    setActiveIndex: React.Dispatch<React.SetStateAction<number>>;
 };
 
-const TopOffers = ({ id = 'TopOffers', title, items, className }: TopOffersProps) => {
-  const ref = useHorizontalScroll();
+type TSectionRef = {
+    // Здесь можно добавить методы, которые будут доступны через ref
+    scrollIntoView: () => void;
+};
 
-  return (
-    <div className={cx('TopOffers', className)} id={id}>
-      <div className={cx('TopOffers_inner')}>
-        <h3 className={cx('TopOffers_title')}>{title}</h3>
+const Section = forwardRef<TSectionRef, TSectionProps>(({ 
+    item, 
+    segment, 
+    index, 
+    isLast, 
+    setActiveIndex 
+}, ref) => {
+    const controls = useAnimation();
+    const sectionRef = React.useRef<HTMLDivElement>(null);
+    const isInView = useInView(sectionRef, {
+        amount: 0.9
+    });
 
-        <div
-          ref={ref}
-          style={{
-            overflowX: 'auto',
-            width: '90vw',
-            display: 'flex',
-            gap: '10px',
-            whiteSpace: 'nowrap',
-            scrollBehavior: 'smooth',
-          }}
+    // Предоставляем методы наружу через ref
+    useImperativeHandle(ref, () => ({
+        scrollIntoView: () => {
+            sectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }));
+
+    useEffect(() => {
+        if (index < 2) console.log(isInView);
+        if (isInView) {
+            controls.start('visible');
+            setActiveIndex(index);
+        } else {
+            controls.start('hidden');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [controls, isInView]);
+
+    const variants = {
+        visible: { 
+            opacity: 1, 
+            scale: 1,
+            transition: { duration: 0.5 } 
+        },
+        hidden: { 
+            opacity: 0, 
+            scale: 0.9,
+            transition: { duration: 0.5 } 
+        }
+    };
+
+    return (
+        <motion.section
+            ref={sectionRef}
+            id={index.toString()}
+            className={cx(
+                `${CLASS_NAME}__section`,
+                index === 0 && `${CLASS_NAME}__section--first`,
+                isLast && `${CLASS_NAME}__section--last`
+            )}
+            initial="hidden"
+            animate={controls}
+            variants={variants}
         >
-          {Array.from({ length: 10 }).map((_, idx) => (
-            <div 
-              key={idx} 
-              style={{ 
-                minWidth: '300px', 
-                height: '400px',
-                backgroundColor: '#eee',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px'
-              }}
-            >
-              {idx + 1}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
+            {item}
+        </motion.section>
+    );
+});
 
-export default TopOffers;
+Section.displayName = 'Section'; // Для отладки в React DevTools
+
+export default Section;
