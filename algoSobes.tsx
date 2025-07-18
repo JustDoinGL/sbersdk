@@ -1,12 +1,12 @@
-import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, forwardRef } from 'react';
 import classNames from 'classnames/bind';
-import styles from './styles.module.css';
-import { useAnimation, useInView, motion } from 'framer-motion'; // Исправлен импорт из 'motion/react' на 'framer-motion'
+import styles from './styles.module.scss';
+import { useAnimation, useInView, motion } from 'framer-motion';
 
 const cx = classNames.bind(styles);
-const CLASS_NAME = 'SlideSerializer';
+const CLASS_NAME = 'SlideScroller';
 
-type TSectionProps = {
+type TSection = {
     item: React.ReactNode;
     segment: string;
     index: number;
@@ -14,12 +14,7 @@ type TSectionProps = {
     setActiveIndex: React.Dispatch<React.SetStateAction<number>>;
 };
 
-type TSectionRef = {
-    // Здесь можно добавить методы, которые будут доступны через ref
-    scrollIntoView: () => void;
-};
-
-const Section = forwardRef<TSectionRef, TSectionProps>(({ 
+const Section = forwardRef<HTMLDivElement, TSection>(({ 
     item, 
     segment, 
     index, 
@@ -27,17 +22,10 @@ const Section = forwardRef<TSectionRef, TSectionProps>(({
     setActiveIndex 
 }, ref) => {
     const controls = useAnimation();
-    const sectionRef = React.useRef<HTMLDivElement>(null);
-    const isInView = useInView(sectionRef, {
-        amount: 0.9
+    const internalRef = useRef(null);
+    const isInView = useInView(internalRef, {
+        amount: 0.4
     });
-
-    // Предоставляем методы наружу через ref
-    useImperativeHandle(ref, () => ({
-        scrollIntoView: () => {
-            sectionRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }));
 
     useEffect(() => {
         if (index < 2) console.log(isInView);
@@ -51,36 +39,38 @@ const Section = forwardRef<TSectionRef, TSectionProps>(({
     }, [controls, isInView]);
 
     const variants = {
-        visible: { 
-            opacity: 1, 
-            scale: 1,
-            transition: { duration: 0.5 } 
-        },
-        hidden: { 
-            opacity: 0, 
-            scale: 0.9,
-            transition: { duration: 0.5 } 
-        }
+        visible: { opacity: 1, scale: [1] },
+        hidden: { scale: [0.5, 1] }
     };
 
     return (
         <motion.section
-            ref={sectionRef}
             id={index.toString()}
-            className={cx(
-                `${CLASS_NAME}__section`,
-                index === 0 && `${CLASS_NAME}__section--first`,
-                isLast && `${CLASS_NAME}__section--last`
-            )}
+            ref={(node) => {
+                internalRef.current = node;
+                if (typeof ref === 'function') {
+                    ref(node);
+                } else if (ref) {
+                    ref.current = node;
+                }
+            }}
             initial="hidden"
             animate={controls}
             variants={variants}
+            transition={{
+                duration: 1,
+                ease: 'easeInOut'
+            }}
+            className={cx(
+                `${CLASS_NAME}_section`,
+                index === 0 && `${CLASS_NAME}_section_first`,
+                isLast && `${CLASS_NAME}_section_last`
+            )}
+            key={`section-${index}-${segment}`}
         >
             {item}
         </motion.section>
     );
 });
-
-Section.displayName = 'Section'; // Для отладки в React DevTools
 
 export default Section;
