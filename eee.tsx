@@ -1,4 +1,13 @@
-"use client";
+@import "tailwindcss";
+
+html {
+  scroll-snap-type: y mandatory;
+}
+
+
+-----
+
+  "use client";
 
 import {
   animate,
@@ -195,115 +204,141 @@ function StyleSheet() {
     `}</style>
   );
 }
+-------
+  import React, { useRef, useState } from "react";
+import { cardsData } from "./data";
+import { Footer, Header } from "./Content";
+import {
+  motion,
+  useMotionValueEvent,
+  useScroll,
+  useAnimation,
+  useInView,
+} from "motion/react";
+import ScrollLinked from "./Scroll";
 
-
-
-"use client";
-
-import { motion } from "motion/react";
-import { useRef } from "react";
-
-function Image({ id }: { id: number }) {
-  const ref = useRef(null);
-
-  return (
-    <section className="img-container">
-      <div ref={ref}>
-        <img src={`/photos/cityscape/${id}.jpg`} alt="A London skyscraper" />
-      </div>
-      <motion.h2
-        // Hide until scroll progress is measured
-        initial={{ visibility: "hidden" }}
-        animate={{ visibility: "visible" }}
-      >{`#00${id}`}</motion.h2>
-    </section>
-  );
+interface CardProps {
+  number: number;
+  bgColor: string;
+  title: string;
+  description: string;
+  icon: string;
+  scrollDirection: "down" | "up";
+  setIsactive4: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export default function Parallax() {
-  //   const { scrollYProgress } = useScroll();
-  //   const scaleX = useSpring(scrollYProgress, {
-  //     stiffness: 100,
-  //     damping: 30,
-  //     restDelta: 0.001,
-  //   });
+const Card: React.FC<CardProps> = (props) => {
+  const {
+    number,
+    bgColor,
+    title,
+    description,
+    icon,
+    setIsactive4,
+    scrollDirection,
+  } = props;
+  const controls = useAnimation();
+  const ref = useRef(null);
+  const isInView = useInView(ref, {
+    amount: 0.9,
+  });
+
+  React.useEffect(() => {
+    if (isInView) {
+      controls.start("visible");
+      setIsactive4(number);
+    } else {
+      controls.start("hidden");
+    }
+  }, [controls, isInView]);
+
+  const variants = {
+    visible: {
+      scale: [0.8, 0.9, 1],
+    },
+    hidden: {
+      scale: [1, 0.9, 0.8],
+    },
+  };
 
   return (
-    <div id="example">
-      {[1, 2, 3, 4, 5].map((image) => (
-        <Image key={image} id={image} />
-      ))}
-      {/* <motion.div className="progress" style={{ scaleX }} /> */}
-      <StyleSheet />
+    <motion.div
+      className={`h-[100%] w-full ${bgColor} flex items-center justify-center p-4 snap-center`}
+      id={number.toString()}
+      initial="hidden"
+      animate={controls}
+      variants={variants}
+      ref={ref}
+      transition={{
+        duration: 1,
+      }}
+    >
+      <motion.div className="max-w-4xl w-full bg-white bg-opacity-90 rounded-2xl shadow-xl p-8 md:p-12">
+        <div className="flex items-center mb-6">
+          <div className="text-5xl font-bold text-gray-700 mr-4">{number}</div>
+          <div className="text-4xl">{icon}</div>
+        </div>
+        <h2 className="text-4xl font-bold text-gray-800 mb-6">{title}</h2>
+        <p className="text-xl text-gray-600 mb-8">{description}</p>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+        >
+          Learn More
+        </motion.button>
+        {number === 4 && (
+          <ScrollLinked
+            setIsactive4={setIsactive4}
+            scrollDirection={scrollDirection}
+          />
+        )}
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const App: React.FC = () => {
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const { scrollY } = useScroll({ container: carouselRef });
+  const [scrollDirection, setScrollDirection] = useState<"down" | "up">("down");
+  const [isActive4, setIsactive4] = useState(false);
+
+  useMotionValueEvent(scrollY, "change", (current) => {
+    const previous = scrollY.getPrevious();
+    if (previous !== undefined) {
+      const diff = current - previous;
+      setScrollDirection(diff > 0 ? "down" : "up");
+    }
+  });
+
+  return (
+    <div className="relative h-screen w-full overflow-hidden bg-gray-100">
+      <Header />
+
+      <motion.main
+        ref={carouselRef}
+        style={{ overflowY: isActive4 ? "hidden" : "scroll" }}
+        className="h-[100vh] w-full overflow-y-auto snap-y snap-mandatory scroll-smooth"
+      >
+        {cardsData.map((card) => (
+          <Card
+            key={card.number}
+            number={card.number}
+            bgColor={card.bgColor}
+            title={card.title}
+            description={card.description}
+            icon={card.icon}
+            scrollDirection={scrollDirection}
+            setIsactive4={setIsactive4}
+          />
+        ))}
+      </motion.main>
+
+      <Footer />
     </div>
   );
-}
+};
 
-/**
- * ==============   Styles   ================
- */
-
-function StyleSheet() {
-  return (
-    <style>{`
-        html {
-            scroll-snap-type: y mandatory;
-        }
-
-        .img-container {
-            height: 100vh;
-            scroll-snap-align: start;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
-
-        .img-container > div {
-            width: 300px;
-            height: 400px;
-            margin: 20px;
-            background: #f5f5f5;
-            overflow: hidden;
-        }
-
-        .img-container img {
-            width: 300px;
-            height: 400px;
-        }
-
-        @media (max-width: 500px) {
-            .img-container > div {
-                width: 150px;
-                height: 200px;
-            }
-
-            .img-container img {
-                width: 150px;
-                height: 200px;
-            }
-        }
-
-        .img-container h2 {
-            color: #8df0cc;
-            margin: 0;
-            font-family: "Azeret Mono", monospace;
-            font-size: 50px;
-            font-weight: 700;
-            letter-spacing: -3px;
-            line-height: 1.2;
-            position: absolute;
-            display: inline-block;
-            top: calc(50% - 25px);
-            left: calc(50% + 120px);
-        }
-    `}</style>
-  );
-}
-
-
-@import "tailwindcss";
-
-html {
-  scroll-snap-type: y mandatory;
-}
+export default App;
