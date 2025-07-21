@@ -1,104 +1,186 @@
-import { motion, useScroll, useMotionValueEvent, animate } from "framer-motion";
-import { 
-  forwardRef, 
-  useRef, 
-  useImperativeHandle, 
-  useCallback 
-} from "react";
+import { useRef, useState, useEffect } from "react";
+import { Swiper as SwiperType } from "swiper";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { useScroll, useMotionValueEvent, motion } from "framer-motion";
+import "swiper/css";
 
-type SlideScrollerHandle = {
-  scrollToSlide: (index: number) => void;
-};
-
-type SlideScrollerProps = {
-  children: React.ReactNode;
-  zoomFactor?: number;
+type TTopOffersProps = {
+  id?: string;
+  title?: string;
+  items?: any[];
   className?: string;
+  direction?: "horizontal" | "vertical";
 };
 
-const SlideScroller = forwardRef<SlideScrollerHandle, SlideScrollerProps>(
-  ({ children, zoomFactor = 0.3, className }, ref) => {
-    const wrapperRef = useRef<HTMLDivElement>(null);
-    const slidesRef = useRef<HTMLElement[]>([]);
-    const currentSlideIndex = useRef(0);
+export const TopOffers = ({
+  id = "TopOffers",
+  title,
+  items,
+  className,
+  direction = "horizontal",
+}: TTopOffersProps) => {
+  const swiperRef = useRef<SwiperType | null>(null);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [maxScroll, setMaxScroll] = useState(0);
 
-    const { scrollYProgress } = useScroll({ container: wrapperRef });
+  const { scrollX, scrollY } = useScroll({
+    container: containerRef,
+  });
 
-    const registerSlideRef = (index: number) => (el: HTMLElement | null) => {
-      if (el) slidesRef.current[index] = el;
+  // Обновляем максимальное значение скролла при изменении размера или количества слайдов
+  useEffect(() => {
+    if (!swiperRef.current) return;
+    
+    const updateMaxScroll = () => {
+      if (!swiperRef.current) return;
+      
+      const swiper = swiperRef.current;
+      const isHorizontal = direction === "horizontal";
+      
+      // Размер контейнера
+      const containerSize = isHorizontal 
+        ? swiper.width 
+        : swiper.height;
+      
+      // Общий размер всех слайдов с учетом промежутков
+      const totalSize = isHorizontal
+        ? swiper.slides.reduce((sum, slide) => sum + slide.swiperSlideSize + swiper.params.spaceBetween, 0)
+        : swiper.slides.reduce((sum, slide) => sum + slide.swiperSlideSize + swiper.params.spaceBetween, 0);
+      
+      // Максимальный скролл - разница между общим размером и размером контейнера
+      const newMaxScroll = Math.max(0, totalSize - containerSize);
+      setMaxScroll(newMaxScroll);
     };
 
-    const scrollToSlide = useCallback((index: number) => {
-      if (!wrapperRef.current || !slidesRef.current[index]) return;
+    updateMaxScroll();
+    
+    // Обновляем при ресайзе
+    const observer = new ResizeObserver(updateMaxScroll);
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    
+    return () => observer.disconnect();
+  }, [direction, items?.length]);
 
-      animate(
-        wrapperRef.current.scrollTop,
-        slidesRef.current[index].offsetTop,
-        {
-          type: "spring",
-          damping: 30,
-          stiffness: 300,
-          onUpdate: (val) => {
-            if (wrapperRef.current) wrapperRef.current.scrollTop = val;
-          }
-        }
-      );
-    }, []);
+  useMotionValueEvent(scrollX, "change", (latest) => {
+    if (!swiperRef.current || direction !== "horizontal") return;
+    const clampedTranslate = Math.min(maxScroll, Math.max(0, latest));
+    swiperRef.current.setTranslate(-clampedTranslate);
+  });
 
-    useImperativeHandle(ref, () => ({ scrollToSlide }));
+  useMotionValueEvent(scrollY, "change", (latest) => {
+    if (!swiperRef.current || direction !== "vertical") return;
+    const clampedTranslate = Math.min(maxScroll, Math.max(0, latest));
+    swiperRef.current.setTranslate(-clampedTranslate);
+  });
 
-    useMotionValueEvent(scrollYProgress, "change", (latest) => {
-      if (!wrapperRef.current) return;
+  useEffect(() => {
+    const swiperEl = containerRef.current;
+    if (!swiperEl) return;
 
-      const scrollTop = wrapperRef.current.scrollTop;
-      const activeIndex = slidesRef.current.findIndex(
-        (slide, i) => 
-          scrollTop >= slide.offsetTop && 
-          (i === slidesRef.current.length - 1 || scrollTop < slidesRef.current[i + 1].offsetTop)
-      );
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (!swiperRef.current) return;
 
-      if (activeIndex !== -1 && currentSlideIndex.current !== activeIndex) {
-        currentSlideIndex.current = activeIndex;
-      }
+      const delta = direction === "horizontal" ? e.deltaY || e.deltaX : e.deltaY;
+      const currentTranslate = Math.abs(swiperRef.current.getTranslate());
+      let newTranslate = currentTranslate + delta * 0.5;
 
-      slidesRef.current.forEach((slide) => {
-        const delta = Math.min(
-          1,
-          Math.abs(scrollTop - slide.offsetTop) / slide.clientHeight
-        );
+      // Ограничиваем скролл в пределах [0, maxScroll]
+      newTranslate = Math.max(0, Math.min(maxScroll, newTranslate));
 
-        if (slide.firstElementChild) {
-          const scale = 1 - delta * zoomFactor;
-          animate(slide.firstElementChild, { scale }, { type: "spring" });
+      swiperRef.current.setTranslate(-newTranslate);
+    };
 
-          const nextSibling = slide.firstElementChild.nextElementSibling;
-          if (nextSibling) {
-            const opacity = 1 - delta * 0.8;
-            animate(nextSibling, { opacity }, { type: "spring" });
-          }
-        }
-      });
-    });
+    swiperEl.addEventListener("wheel", handleWheel, { passive: false });
+    return () => swiperEl.removeEventListener("wheel", handleWheel);
+  }, [direction, maxScroll]);
 
-    return (
+  return (
+    <div className={`top-offers-container ${className}`} id={id}>
+      {title && <h2 className="top-offers-title">{title}</h2>}
+
       <motion.div
-        ref={wrapperRef}
-        className={className}
-        style={{ overflow: "auto", height: "100vh" }}
+        ref={containerRef}
+        className="top-offers-wrapper"
+        style={{
+          overflow: "hidden",
+          position: "relative",
+          height: direction === "vertical" ? "500px" : "auto",
+          width: "100%",
+        }}
       >
-        {React.Children.map(children, (child, index) => {
-          if (React.isValidElement(child)) {
-            return React.cloneElement(child, {
-              ref: registerSlideRef(index),
-            });
-          }
-          return child;
-        })}
+        <Swiper
+          onSwiper={(swiper) => {
+            swiperRef.current = swiper;
+            // Инициализируем максимальный скролл после создания Swiper
+            setTimeout(() => {
+              const isHorizontal = direction === "horizontal";
+              const containerSize = isHorizontal ? swiper.width : swiper.height;
+              const totalSize = isHorizontal
+                ? swiper.slides.reduce((sum, slide) => sum + slide.swiperSlideSize + swiper.params.spaceBetween, 0)
+                : swiper.slides.reduce((sum, slide) => sum + slide.swiperSlideSize + swiper.params.spaceBetween, 0);
+              setMaxScroll(Math.max(0, totalSize - containerSize));
+            }, 100);
+          }}
+          onSlideChange={(swiper) => setActiveSlideIndex(swiper.activeIndex)}
+          spaceBetween={20}
+          slidesPerView="auto"
+          freeMode={true}
+          resistanceRatio={0}
+          direction={direction}
+          style={{
+            height: direction === "vertical" ? "100%" : "300px",
+            width: "100%",
+            padding: "0 20px",
+          }}
+        >
+          {(items || Array.from({ length: 100 })).map((item, index) => (
+            <SwiperSlide
+              key={index}
+              style={{
+                width: direction === "horizontal" ? "200px" : "100%",
+                height: direction === "vertical" ? "150px" : "100%",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <motion.div
+                className="offer-card"
+                animate={{
+                  scale: activeSlideIndex === index ? 1.1 : 0.9,
+                  opacity: activeSlideIndex === index ? 1 : 0.6,
+                }}
+                transition={{ type: "spring", stiffness: 300 }}
+                style={{
+                  background: `hsl(${index * 10}, 70%, 80%)`,
+                  borderRadius: "16px",
+                  padding: "20px",
+                  width: "100%",
+                  height: direction === "vertical" ? "100%" : "80%",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  cursor: "pointer",
+                }}
+                whileHover={{ scale: 1.05 }}
+                onClick={() => console.log("Clicked item:", index)}
+              >
+                <h3>Offer #{index + 1}</h3>
+                {items && items[index] && (
+                  <p>{items[index].title || "Special offer"}</p>
+                )}
+                <button className="offer-button">View</button>
+              </motion.div>
+            </SwiperSlide>
+          ))}
+        </Swiper>
       </motion.div>
-    );
-  }
-);
-
-SlideScroller.displayName = "SlideScroller";
-
-export default SlideScroller;
+    </div>
+  );
+};
