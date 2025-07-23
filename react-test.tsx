@@ -1,102 +1,101 @@
-import { useRef, useEffect } from "react";
-import { Swiper, SwiperSlide } from "swiper/react";
-import { Mousewheel, FreeMode } from "swiper/modules";
-import "swiper/css";
+import { motion, AnimatePresence } from 'framer-motion';
 
-export default function VerticalToHorizontalScroll() {
-  const swiperRef = useRef(null);
-  const isScrolling = useRef(false);
-  const startY = useRef(0);
-  const startX = useRef(0);
-
-  // Обработчик колеса мыши и тачпада
-  useEffect(() => {
-    const swiperEl = swiperRef.current?.swiper?.el;
-    if (!swiperEl) return;
-
-    const handleWheel = (e) => {
-      if (!swiperRef.current?.swiper || isScrolling.current) return;
-
-      e.preventDefault();
-      const delta = e.deltaY || e.deltaX; // Учитываем и горизонтальный скролл (на случай тачпада)
-      swiperRef.current.swiper.setTranslate(
-        swiperRef.current.swiper.getTranslate() - delta
-      );
-    };
-
-    swiperEl.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      swiperEl.removeEventListener("wheel", handleWheel);
-    };
-  }, []);
-
-  // Обработчик touch-событий (для мобильных устройств)
-  useEffect(() => {
-    const swiperEl = swiperRef.current?.swiper?.el;
-    if (!swiperEl) return;
-
-    const handleTouchStart = (e) => {
-      isScrolling.current = true;
-      startY.current = e.touches[0].clientY;
-      startX.current = e.touches[0].clientX;
-    };
-
-    const handleTouchMove = (e) => {
-      if (!isScrolling.current) return;
-
-      e.preventDefault();
-      const deltaY = e.touches[0].clientY - startY.current;
-      const deltaX = e.touches[0].clientX - startX.current;
-
-      // Если скроллим в основном по вертикали — блокируем дефолтное поведение
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        swiperRef.current.swiper.setTranslate(
-          swiperRef.current.swiper.getTranslate() - deltaY
-        );
-        startY.current = e.touches[0].clientY;
-      }
-    };
-
-    const handleTouchEnd = () => {
-      isScrolling.current = false;
-    };
-
-    swiperEl.addEventListener("touchstart", handleTouchStart, { passive: false });
-    swiperEl.addEventListener("touchmove", handleTouchMove, { passive: false });
-    swiperEl.addEventListener("touchend", handleTouchEnd, { passive: false });
-
-    return () => {
-      swiperEl.removeEventListener("touchstart", handleTouchStart);
-      swiperEl.removeEventListener("touchmove", handleTouchMove);
-      swiperEl.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, []);
-
+const LovelyBank = ({ id = 'LovelyBank', title, picture, images, className }: LovelyBankProps) => {
   return (
-    <div style={{ height: "100vh", overflow: "hidden" }}>
-      <Swiper
-        ref={swiperRef}
-        direction="horizontal"
-        slidesPerView="auto"
-        freeMode={{ enabled: true, momentumRatio: 0.5 }} // Инерция при скролле
-        mousewheel={{
-          invert: false,
-          forceToAxis: true,
-        }}
-        modules={[Mousewheel, FreeMode]}
-        style={{ height: "100vh" }}
+    <motion.div
+      className={cx(CLASS_NAME, className)}
+      id={id}
+      initial="offscreen"
+      whileInView="onscreen"
+      viewport={{ amount: 0.75, once: true }}
+      layout // Включаем layout-анимацию для корневого элемента
+    >
+      <motion.div 
+        className={cx(`${CLASS_NAME}_inner`)}
+        layout
       >
-        <SwiperSlide style={{ width: "100vw", height: "100vh", background: "red" }}>
-          Slide 1
-        </SwiperSlide>
-        <SwiperSlide style={{ width: "100vw", height: "100vh", background: "blue" }}>
-          Slide 2
-        </SwiperSlide>
-        <SwiperSlide style={{ width: "100vw", height: "100vh", background: "green" }}>
-          Slide 3
-        </SwiperSlide>
-      </Swiper>
-    </div>
+        {/* Контейнер-источник разлёта */}
+        <motion.div
+          className={cx(`${CLASS_NAME}_logo-wrapper`)}
+          variants={logoWrapperVariants}
+          layoutId="source-layout" // Уникальный ID для связи анимаций
+        >
+          <AnimatePresence>
+            {/* Логотип */}
+            <motion.img
+              layoutId="logo"
+              className={cx(`${CLASS_NAME}_logo`)}
+              src={withBase(picture)}
+              variants={logoVariants}
+            />
+
+            {/* Заголовок */}
+            <motion.h2
+              layoutId="title"
+              className={cx(`${CLASS_NAME}_title`)}
+              dangerouslySetInnerHTML={{ __html: title }}
+              variants={titleVariants}
+            />
+
+            {/* Изображения */}
+            {images.map((item, index) => (
+              <motion.img
+                layoutId={`image-${index}`}
+                className={cx(
+                  `${CLASS_NAME}_image`,
+                  `${CLASS_NAME}_image_${index + 1}`
+                )}
+                key={index}
+                src={withBase(item.src)}
+                variants={getImageVariants(index, images.length)}
+                custom={index}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
-}
+};
+
+
+const logoWrapperVariants: Variants = {
+  offscreen: {
+    scale: 0.8,
+    opacity: 0,
+    rotate: -5
+  },
+  onscreen: {
+    scale: 1,
+    opacity: 1,
+    rotate: 0,
+    transition: {
+      type: "spring",
+      bounce: 0.4,
+      duration: 1.5,
+      when: "beforeChildren" // Сначала анимируется контейнер
+    }
+  }
+};
+
+const getImageVariants = (index: number): Variants => ({
+  offscreen: {
+    x: `${(index % 3 - 1) * 100}%`, // -100%, 0%, +100% по горизонтали
+    y: `${Math.floor(index / 3) * -80}px`, // Разлет по вертикали
+    opacity: 0,
+    transition: {
+      type: "spring",
+      bounce: 0.5
+    }
+  },
+  onscreen: {
+    x: 0,
+    y: 0,
+    opacity: 1,
+    transition: {
+      delay: index * 0.15,
+      type: "spring",
+      bounce: 0.3
+    }
+  }
+});
