@@ -1,137 +1,138 @@
-import React, { useRef, useState } from "react";
-import { cardsData } from "./data";
-import { Footer, Header } from "./Content";
-import {
-  motion,
-  useMotionValueEvent,
-  useScroll,
-  useAnimation,
-  useInView,
-} from "motion/react";
-import ScrollLinked from "./Scroll";
+import { motion, AnimatePresence } from 'framer-motion';
+import cx from 'classnames';
+import { withBase } from 'your-path-helpers';
 
-interface CardProps {
-  number: number;
-  bgColor: string;
+const CLASS_NAME = 'LovelyBank';
+
+interface LovelyBankProps {
+  id?: string;
   title: string;
-  description: string;
-  icon: string;
-  scrollDirection: "down" | "up";
-  setIsactive4: React.Dispatch<React.SetStateAction<boolean>>;
+  picture: string;
+  images: Array<{ src: string }>;
+  className?: string;
 }
 
-const Card: React.FC<CardProps> = (props) => {
-  const {
-    number,
-    bgColor,
-    title,
-    description,
-    icon,
-    setIsactive4,
-    scrollDirection,
-  } = props;
-  const controls = useAnimation();
-  const ref = useRef(null);
-  const isInView = useInView(ref, {
-    amount: 0.9,
-  });
-
-  React.useEffect(() => {
-    if (isInView) {
-      controls.start("visible");
-      setIsactive4(number);
-    } else {
-      controls.start("hidden");
-    }
-  }, [controls, isInView]);
-
-  const variants = {
-    visible: {
-      scale: [0.8, 0.9, 1],
-    },
-    hidden: {
-      scale: [1, 0.9, 0.8],
-    },
-  };
-
+const LovelyBank: React.FC<LovelyBankProps> = ({ 
+  id = 'LovelyBank', 
+  title, 
+  picture, 
+  images, 
+  className 
+}) => {
   return (
     <motion.div
-      className={`h-[100%] w-full ${bgColor} flex items-center justify-center p-4 snap-center`}
-      id={number.toString()}
-      initial="hidden"
-      animate={controls}
-      variants={variants}
-      ref={ref}
-      transition={{
-        duration: 1,
-      }}
+      className={cx(CLASS_NAME, className)}
+      id={id}
+      initial="offscreen"
+      whileInView="onscreen"
+      viewport={{ amount: 0.75, once: true }}
     >
-      <motion.div className="max-w-4xl w-full bg-white bg-opacity-90 rounded-2xl shadow-xl p-8 md:p-12">
-        <div className="flex items-center mb-6">
-          <div className="text-5xl font-bold text-gray-700 mr-4">{number}</div>
-          <div className="text-4xl">{icon}</div>
-        </div>
-        <h2 className="text-4xl font-bold text-gray-800 mb-6">{title}</h2>
-        <p className="text-xl text-gray-600 mb-8">{description}</p>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+      <div className={cx(`${CLASS_NAME}_inner`)}>
+        {/* Контейнер-источник разлёта */}
+        <motion.div
+          className={cx(`${CLASS_NAME}_logo-wrapper`)}
+          variants={logoWrapperVariants}
+          layout
         >
-          Learn More
-        </motion.button>
-        {number === 4 && (
-          <ScrollLinked
-            setIsactive4={setIsactive4}
-            scrollDirection={scrollDirection}
-          />
-        )}
-      </motion.div>
+          <AnimatePresence>
+            {/* Логотип - остаётся в центре */}
+            <motion.img
+              className={cx(`${CLASS_NAME}_logo`)}
+              src={withBase(picture)}
+              variants={logoVariants}
+              layout
+            />
+            
+            {/* Заголовок - остаётся в центре */}
+            <motion.h2
+              className={cx(`${CLASS_NAME}_title`)}
+              dangerouslySetInnerHTML={{ __html: title }}
+              variants={titleVariants}
+              layout
+            />
+            
+            {/* Изображения, которые будут разлетаться */}
+            {images.map((item, index) => (
+              <motion.div
+                key={index}
+                layout
+                variants={getImageVariants(index, images.length)}
+                custom={index}
+                className={cx(
+                  `${CLASS_NAME}_image-container`,
+                  `${CLASS_NAME}_image-container_${index + 1}`
+                )}
+              >
+                <motion.img
+                  className={cx(`${CLASS_NAME}_image`)}
+                  src={withBase(item.src)}
+                  layout
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      </div>
     </motion.div>
   );
 };
 
-const App: React.FC = () => {
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const { scrollY } = useScroll({ container: carouselRef });
-  const [scrollDirection, setScrollDirection] = useState<"down" | "up">("down");
-  const [isActive4, setIsactive4] = useState(false);
-
-  useMotionValueEvent(scrollY, "change", (current) => {
-    const previous = scrollY.getPrevious();
-    if (previous !== undefined) {
-      const diff = current - previous;
-      setScrollDirection(diff > 0 ? "down" : "up");
+// Анимации
+const logoWrapperVariants: Variants = {
+  offscreen: {
+    scale: 0.7,
+    opacity: 0,
+    rotate: -10
+  },
+  onscreen: {
+    scale: 1,
+    opacity: 1,
+    rotate: 0,
+    transition: {
+      type: "spring",
+      bounce: 0.3,
+      duration: 1.2,
+      when: "beforeChildren",
+      staggerChildren: 0.1
     }
-  });
-
-  return (
-    <div className="relative h-screen w-full overflow-hidden bg-gray-100">
-      <Header />
-
-      <motion.main
-        ref={carouselRef}
-        style={{ overflowY: isActive4 ? "hidden" : "scroll" }}
-        className="h-[100vh] w-full overflow-y-auto snap-y snap-mandatory scroll-smooth"
-      >
-        {cardsData.map((card) => (
-          <Card
-            key={card.number}
-            number={card.number}
-            bgColor={card.bgColor}
-            title={card.title}
-            description={card.description}
-            icon={card.icon}
-            scrollDirection={scrollDirection}
-            setIsactive4={setIsactive4}
-          />
-        ))}
-      </motion.main>
-
-      <Footer />
-    </div>
-  );
+  }
 };
 
-export default App;
+const logoVariants: Variants = {
+  offscreen: { scale: 0.5, opacity: 0 },
+  onscreen: { 
+    scale: 1, 
+    opacity: 1,
+    transition: { type: "spring", bounce: 0.5 }
+  }
+};
+
+const titleVariants: Variants = {
+  offscreen: { y: 20, opacity: 0 },
+  onscreen: { 
+    y: 0, 
+    opacity: 1,
+    transition: { type: "spring", bounce: 0.3 }
+  }
+};
+
+const getImageVariants = (index: number, total: number): Variants => ({
+  offscreen: {
+    x: 0,
+    y: 0,
+    scale: 0.3,
+    opacity: 0
+  },
+  onscreen: {
+    x: Math.cos((index / total) * Math.PI * 2) * 200, // Радиальное размещение
+    y: Math.sin((index / total) * Math.PI * 2) * 200,
+    scale: 1,
+    opacity: 1,
+    transition: {
+      delay: 0.3 + index * 0.05,
+      type: "spring",
+      stiffness: 50,
+      damping: 10
+    }
+  }
+});
