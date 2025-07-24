@@ -1,56 +1,35 @@
-import { motion, useAnimationControls } from "framer-motion";
-import { useState } from "react";
+const getImageStyles = (index: number) => {
+  const styles = {
+    1: {
+      top: "-10px",
+      right: "214px",
+      zIndex: 5,
+    },
+    2: {
+      top: "231px",
+      right: "0",
+      zIndex: 4,
+    },
+    3: {
+      bottom: "-96px",
+      right: "127px",
+      zIndex: 4,
+    },
+    4: {
+      bottom: "-41px",
+      left: "164px",
+      zIndex: 4,
+    },
+    5: {
+      top: "144px",
+      left: "0",
+      zIndex: 4,
+    },
+  };
 
-const LovelyBank = ({ id = 'LovelyBank', title, picture }) => {
-    const [areCardsVisible, setAreCardsVisible] = useState(false);
-
-    const logoVariants: Variants = {
-        onscreen: {
-            opacity: 1,
-            scale: 1,
-            top: '-10px',
-            right: '-214px',
-            transition: {
-                delay: custom * 0.1,
-                type: 'spring',
-                stiffness: 50,
-                damping: 10,
-                onUpdate: (latest) => {
-                    // Показываем карточки, когда scale > 0.5 или opacity > 0.5
-                    if (latest.scale > 0.5 || latest.opacity > 0.5) {
-                        setAreCardsVisible(true);
-                    }
-                }
-            }
-        }
-    };
-
-    return (
-        <motion.div
-            className='cx(CLASS_NAME, className)'
-            id={id}
-            initial='offscreen'
-            whileInView='onscreen'
-            viewport={{ amount: 1, once: true }}
-            variants={logoVariants}
-        >
-            {/* Логотип */}
-            <motion.img src={picture} alt={title} />
-
-            {/* Карточки, которые становятся видимыми */}
-            {areCardsVisible && (
-                <div className="cards">
-                    {cards.map(card => (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.2 }}
-                        >
-                            {card.content}
-                        </motion.div>
-                    ))}
-                </div>
-            )}
-        </motion.div>
-    );
+  return styles[index] || {}; // Возвращает пустой объект, если индекс невалидный
 };
+
+// Пример использования:
+const image1Styles = getImageStyles(1); // { top: "-10px", right: "214px", zIndex: 5 }
+const image3Styles = getImage
