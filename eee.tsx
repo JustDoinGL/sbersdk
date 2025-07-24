@@ -1,66 +1,138 @@
-import { motion, useAnimation, useInView } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { motion, useAnimation, AnimatePresence } from 'framer-motion';
+import { useEffect } from 'react';
+import cx from 'classnames';
+import { withBase } from 'your-path-helpers';
 
-const LovelyBank = () => {
-  const controls = useAnimation();
+const CLASS_NAME = 'LovelyBank';
+
+interface LovelyBankProps {
+  id?: string;
+  title: string;
+  picture: string;
+  images: Array<{ src: string }>;
+  className?: string;
+}
+
+const LovelyBank = ({ id = 'LovelyBank', title, picture, images, className }: LovelyBankProps) => {
   const wrapperControls = useAnimation();
-  const ref = useRef(null);
-  const inView = useInView(ref);
+  const elementsControls = useAnimation();
 
   useEffect(() => {
-    if (inView) {
-      // Запускаем анимацию wrapper
-      wrapperControls.start({
-        opacity: [0, 1, 1, 1, 1, 0.9, 0],
-        y: 0,
-        transition: { delay: 1, duration: 1 }
-      }).then(() => {
-        // Когда wrapper достигает opacity 0.9, меняем позицию элементов
-        controls.start({
-          top: "100px",  // Новая позиция
-          right: "50px",
-          transition: { duration: 0.5 }
-        });
+    const sequence = async () => {
+      // Анимация появления wrapper
+      await wrapperControls.start({
+        opacity: [0, 0.3, 0.6, 0.9, 1],
+        transition: { duration: 1 }
       });
-    }
-  }, [inView, controls, wrapperControls]);
+      
+      // Когда opacity достигает 0.9, запускаем вылет элементов
+      await elementsControls.start("flyOut");
+    };
+    
+    sequence();
+  }, [wrapperControls, elementsControls]);
 
   return (
-    <div ref={ref}>
-      {/* Чёрный блок */}
-      <motion.div
-        animate={wrapperControls}
-        initial={{
-          y: 'calc(100% + 300px)',
-          opacity: 0
-        }}
-        className="logo-wrapper"
-        style={{
-          width: 300,
-          height: 300,
-          background: 'black',
-          position: 'relative'
-        }}
-      >
-        {/* Элементы внутри */}
+    <motion.div
+      className={cx(CLASS_NAME, className)}
+      id={id}
+      initial="offscreen"
+      whileInView="onscreen"
+      viewport={{ once: true }}
+    >
+      <motion.div className={cx(`${CLASS_NAME}__inner`)}>
+        {/* Чёрный блок-источник */}
         <motion.div
-          animate={controls}
-          initial={{
-            y: 'calc(100% + 350px)',
-            opacity: 0,
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)'
-          }}
-          className="logo-element"
-          style={{
-            width: 100,
-            height: 100,
-            background: 'red'
-          }}
-        />
+          className={cx(`${CLASS_NAME}__logo-wrapper`)}
+          animate={wrapperControls}
+          initial={{ opacity: 0 }}
+          layout
+        >
+          <AnimatePresence>
+            {/* Логотип */}
+            <motion.img
+              className={cx(`${CLASS_NAME}__logo`)}
+              src={withBase(picture)}
+              animate={elementsControls}
+              variants={logoVariants}
+              custom={0}
+              layout
+            />
+            
+            {/* Заголовок */}
+            <motion.h2
+              className={cx(`${CLASS_NAME}__title`)}
+              dangerouslySetInnerHTML={{ __html: title }}
+              animate={elementsControls}
+              variants={titleVariants}
+              custom={1}
+              layout
+            />
+            
+            {/* Изображения */}
+            {images.map((item, index) => (
+              <motion.img
+                className={cx(
+                  `${CLASS_NAME}__image`,
+                  `${CLASS_NAME}__image_${index + 1}`
+                )}
+                key={index}
+                src={withBase(item.src)}
+                animate={elementsControls}
+                variants={getImageVariants(index)}
+                custom={index + 2}
+                layout
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
+
+// Анимации
+const logoVariants = {
+  offscreen: { opacity: 0, scale: 0.5 },
+  flyOut: (custom: number) => ({
+    opacity: 1,
+    scale: 1,
+    x: 0,
+    y: 0,
+    transition: {
+      delay: custom * 0.1,
+      type: "spring",
+      stiffness: 100
+    }
+  })
+};
+
+const titleVariants = {
+  ...logoVariants,
+  flyOut: (custom: number) => ({
+    ...logoVariants.flyOut(custom),
+    transition: {
+      delay: custom * 0.1 + 0.2,
+      type: "spring",
+      stiffness: 80
+    }
+  })
+};
+
+const getImageVariants = (index: number) => ({
+  offscreen: { opacity: 0, scale: 0.3 },
+  flyOut: (custom: number) => ({
+    opacity: 1,
+    scale: 1,
+    x: Math.cos((index / 5) * Math.PI * 2) * 200,
+    y: Math.sin((index / 5) * Math.PI * 2) * 200,
+    transition: {
+      delay: custom * 0.1,
+      type: "spring",
+      stiffness: 50,
+      damping: 10
+    }
+  })
+});
+
+export default LovelyBank;
