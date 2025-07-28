@@ -1,34 +1,39 @@
-import { useState, useEffect, useRef, MutableRefObject } from 'react';
+import React, { useState } from 'react';
 
-const useIsVisible = <T extends HTMLElement>(): [boolean, MutableRefObject<T | null>] => {
-  const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<T>(null);
+const Discount = ({ rightBotBlock, setOpenQuiz }: IDiscountProps) => {
+    const [isHovered, setIsHovered] = useState(false);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsVisible(entry.isIntersecting);
-      },
-      {
-        root: null, // используем viewport
-        rootMargin: '0px',
-        threshold: 0.1, // срабатывает когда 10% элемента видно
-      }
-    );
-
-    const currentElement = ref.current;
-    if (currentElement) {
-      observer.observe(currentElement);
-    }
-
-    return () => {
-      if (currentElement) {
-        observer.unobserve(currentElement);
-      }
+    const handleClick = () => {
+        // Ваша логика клика
+        if (setOpenQuiz) setOpenQuiz();
     };
-  }, []);
 
-  return [isVisible, ref];
+    return (
+        <a 
+            className={`cx('${CLASS_NAME}') ${isHovered ? 'hovered' : ''}`}
+            onClick={handleClick}
+            href="think.net"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <div className="cx('${CLASS_NAME}_img-container')">
+                <picture className="cx('${CLASS_NAME}_img')" image="ding" />
+            </div>
+            <div className="cx('${CLASS_NAME}_container')">
+                <Title 
+                    level={4} 
+                    text="title" 
+                    theme="light" 
+                    className="cx('${CLASS_NAME}_title')"
+                />
+                <Paragraph 
+                    text="description" 
+                    theme="light" 
+                    className="cx('${CLASS_NAME}_description')"
+                />
+            </div>
+        </a>
+    );
 };
 
-export default useIsVisible;
+export default Discount;
