@@ -1,93 +1,137 @@
-import { useState, useEffect } from 'react';
+import { createAsyncThunk } from '@reduxjs/toolkit';
+import { QueryParams, ApiResponse } from './types';
+import { RootState } from './store';
 
-export function useDebounce<T>(value: T, delay: number = 500): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-import { useForm } from 'react-hook-form';
-import { useEffect, useState } from 'react';
-import { useDebounce } from './useDebounce';
-
-function SearchForm() {
-  const { register, watch } = useForm();
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  // Отслеживаем поле поиска
-  const searchTerm = watch('search');
+// Mock API функция (замените на реальный API вызов)
+const mockApiCall = async (params: QueryParams): Promise<ApiResponse> => {
+  // Имитация задержки сети
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // Используем дебаунс на 500ms
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  // Mock данные
+  const mockUsers = [
+    { id: 1, name: 'John Doe', email: 'john@example.com' },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
+    { id: 3, name: 'Bob Johnson', email: 'bob@example.com' }
+  ];
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!debouncedSearchTerm || debouncedSearchTerm.length < 2) {
-        setResults([]);
-        return;
-      }
+  return {
+    users: mockUsers,
+    totalCount: 100
+  };
+};
 
-      setLoading(true);
-      try {
-        const response = await fetch(
-          `/api/search?q=${encodeURIComponent(debouncedSearchTerm)}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        
-        const data = await response.json();
-        setResults(data);
-      } catch (error) {
-        console.error('Error fetching search results:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+// Реальный API вызов с использованием axios (раскомментируйте если нужно)
+/*
+import axios from 'axios';
 
-    fetchData();
-  }, [debouncedSearchTerm]);
+const fetchUsersFromAPI = async (params: QueryParams): Promise<ApiResponse> => {
+  const response = await axios.get('/api/users', { params });
+  return response.data;
+};
+*/
 
-  return (
-    <div>
-      <form>
-        <input
-          {...register('search')}
-          placeholder="Поиск..."
-          type="text"
-        />
-      </form>
-
-      {loading && <div>Загрузка...</div>}
+export const fetchUsers = createAsyncThunk(
+  'users/fetchUsers',
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as RootState;
+      const queryParams = state.users.queryParams;
       
-      {results.length > 0 && (
-        <div>
-          <h3>Результаты:</h3>
-          <ul>
-            {results.map((result, index) => (
-              <li key={index}>{result.name}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      // Используем mock вызов, замените на реальный API
+      const response = await mockApiCall(queryParams);
       
-      {debouncedSearchTerm && debouncedSearchTerm.length < 2 && (
-        <div>Введите минимум 2 символа</div>
-      )}
-    </div>
-  );
+      return response;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Неизвестная ошибка'
+      );
+    }
+  }
+);
+
+
+///:///
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { UsersState, QueryParams, User } from './types';
+import { fetchUsers } from './usersThunk';
+
+const initialState: UsersState = {
+  users: [],
+  loading: false,
+  error: null,
+  queryParams: {
+    page: 1,
+    limit: 10,
+    search: '',
+    sortBy: 'name'
+  },
+  totalCount: 0
+};
+
+const usersSlice = createSlice({
+  name: 'users',
+  initialState,
+  reducers: {
+    setQueryParams: (state, action: PayloadAction<Partial<QueryParams>>) => {
+      state.queryParams = { ...state.queryParams, ...action.payload };
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
+    resetUsers: () => initialState
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        state.users = action.payload.users;
+        state.totalCount = action.payload.totalCount;
+      })
+      .addCase(fetchUsers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+        state.users = [];
+      });
+  }
+});
+
+export const { setQueryParams, clearError, resetUsers } = usersSlice.actions;
+export default usersSlice.reducer;
+
+
+
+
+
+
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
 }
 
-export default SearchForm;
+export interface QueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: string;
+}
+
+export interface UsersState {
+  users: User[];
+  loading: boolean;
+  error: string | null;
+  queryParams: QueryParams;
+  totalCount: number;
+}
+
+export interface ApiResponse {
+  users: User[];
+  totalCount: number;
+}
+
+
