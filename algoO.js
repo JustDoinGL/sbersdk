@@ -1,5 +1,14 @@
-  background: linear-gradient(to top, 
-                rgba(255, 255, 255, 1) 0%, 
-                rgba(255, 255, 255, 0.8) 25%,
-                rgba(255, 255, 255, 0.4) 50%,
-                rgba(255, 255, 255, 0) 100%);
+mask-image: linear-gradient(
+    to bottom,
+    transparent 100%,
+    transparent 10px,
+    black 20px,
+    black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 10px,
+    black 100px,
+    black 100%
+  );
