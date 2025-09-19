@@ -1,34 +1,10 @@
-.blurred-textarea {
-  position: relative;
+function getToday() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
 }
 
-.blurred-textarea textarea {
-  mask-image: linear-gradient(
-      to bottom,
-      transparent 0%,
-      transparent 10px,
-      black 20px,
-      black 100%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      transparent calc(100% - 12px),
-      black 20px,
-      black 100%
-    );
-  -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0%,
-      transparent 10px,
-      black 20px,
-      black 100%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      transparent calc(100% - 12px),
-      black 20px,
-      black 100%
-    );
-}
+console.log(getToday()); // "2025-07-11"
