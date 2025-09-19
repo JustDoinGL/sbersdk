@@ -1,54 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-
-
-interface UseFetchState<T> {
-  data: T | null;
-  loading: boolean;
-  error: string | null;
+function getOneYearAgo() {
+    const today = new Date();
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+    
+    // Форматируем дату
+    const year = oneYearAgo.getFullYear();
+    const month = String(oneYearAgo.getMonth() + 1).padStart(2, '0');
+    const day = String(oneYearAgo.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
 }
 
-export function useFetch<T = unknown>(
-  url: string,
-  options?: 
-): UseFetchReturn<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Функция выполнения запроса
-  const executeFetch = useCallback(async () => {
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch(url, {
-        ...fetchOptions
-      });
-
-      const responseData: T = await response.json();
-      setData(responseData);
-    } catch (err: any) {
-        setError(err.message || 'An error occurred while fetching data');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [url, options]);
-
-  // Эффект для автоматического выполнения запроса
-  useEffect(() => {
-    if (enabled) {
-      executeFetch();
-    }
-  }, [executeFetch, enabled]);
-
-
-  return {
-    data,
-    loading,
-    error,
-    refetch,
-    setData,
-  };
-}
+console.log(getOneYearAgo()); // "2024-07-11"
