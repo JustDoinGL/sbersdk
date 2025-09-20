@@ -1,76 +1,108 @@
-import React, { useEffect, useRef, forwardRef } from 'react';
-import classNames from 'classnames/bind';
-import styles from './styles.module.scss';
-import { useAnimation, useInView, motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 
-const cx = classNames.bind(styles);
-const CLASS_NAME = 'SlideScroller';
+// Типы (добавьте в соответствии с вашей структурой)
+interface TDeal {
+  prolongation: boolean;
+  prolongation_contract_guid: string;
+  // другие поля сделки
+}
 
-type TSection = {
-    item: React.ReactNode;
-    segment: string;
-    index: number;
-    isLast: boolean;
-    setActiveIndex: React.Dispatch<React.SetStateAction<number>>;
+interface TContractLoss {
+  // поля из getContractLoss
+}
+
+interface THelper extends TDeal, TContractLoss {}
+
+// Хук для получения сделок
+const useGetDeals = (params: {
+  client?: string;
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+  filters?: any;
+}) => {
+  return useQuery({
+    queryKey: ['deals', params],
+    queryFn: () => api.deal_methods.getDeals(params),
+  });
 };
 
-const Section = forwardRef<HTMLDivElement, TSection>(({ 
-    item, 
-    segment, 
-    index, 
-    isLast, 
-    setActiveIndex 
-}, ref) => {
-    const controls = useAnimation();
-    const internalRef = useRef(null);
-    const isInView = useInView(internalRef, {
-        amount: 0.4
-    });
+// Хук для получения потерь контракта
+const useGetContractLoss = (guid: string) => {
+  return useQuery({
+    queryKey: ['contractLoss', guid],
+    queryFn: () => api.dwh.getContractLoss({ guid }),
+    enabled: !!guid, // Запрос выполняется только если guid существует
+  });
+};
 
-    useEffect(() => {
-        if (index < 2) console.log(isInView);
-        if (isInView) {
-            controls.start('visible');
-            setActiveIndex(index);
-        } else {
-            controls.start('hidden');
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [controls, isInView]);
+// Основной хук для объединенных данных
+const useProlongationDeals = (params: {
+  client?: string;
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+  filters?: any;
+}) => {
+  const {
+    data: dealsData,
+    isLoading: dealsLoading,
+    error: dealsError,
+  } = useGetDeals(params);
 
-    const variants = {
-        visible: { opacity: 1, scale: [1] },
-        hidden: { scale: [0.5, 1] }
-    };
+  // Получаем GUID пролонгационных контрактов
+  const prolongationGuids = dealsData?.results
+    ?.filter((el: TDeal) => el.prolongation)
+    .map((el: TDeal) => el.prolongation_contract_guid) || [];
 
-    return (
-        <motion.section
-            id={index.toString()}
-            ref={(node) => {
-                internalRef.current = node;
-                if (typeof ref === 'function') {
-                    ref(node);
-                } else if (ref) {
-                    ref.current = node;
-                }
-            }}
-            initial="hidden"
-            animate={controls}
-            variants={variants}
-            transition={{
-                duration: 1,
-                ease: 'easeInOut'
-            }}
-            className={cx(
-                `${CLASS_NAME}_section`,
-                index === 0 && `${CLASS_NAME}_section_first`,
-                isLast && `${CLASS_NAME}_section_last`
-            )}
-            key={`section-${index}-${segment}`}
-        >
-            {item}
-        </motion.section>
-    );
-});
+  // Запросы для каждого контракта
+  const contractLossQueries = prolongationGuids.map(guid => 
+    useGetContractLoss(guid)
+  );
 
-export default Section;
+  // Объединяем данные
+  const enrichedResults = dealsData?.results
+    ?.filter((el: TDeal) => el.prolongation)
+    .map((deal: TDeal, index: number) => {
+      const contractLossData = contractLossQueries[index]?.data;
+      return {
+        ...deal,
+        ...contractLossData,
+      } as THelper;
+    }) || [];
+
+  const isLoading = dealsLoading || contractLossQueries.some(query => query.isLoading);
+  const errors = [
+    dealsError,
+    ...contractLossQueries.map(query => query.error)
+  ].filter(Boolean);
+
+  return {
+    data: {
+      count: enrichedResults.length,
+      next: dealsData?.next || 0,
+      previous: dealsData?.previous || 0,
+      results: enrichedResults,
+    },
+    isLoading,
+    error: errors.length > 0 ? errors : null,
+  };
+};
+
+// Использование в компоненте
+const MyComponent = () => {
+  const { data, isLoading, error } = useProlongationDeals({
+    client: 'some-client',
+    page: 1,
+    page_size: 10,
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {JSON.stringify(error)}</div>;
+
+  return (
+    <div>
+      {/* Рендеринг данных */}
+    </div>
+  );
+};
