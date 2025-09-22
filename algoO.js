@@ -1,10 +1,21 @@
+type FlatArrayToStringMapper<T extends object> = {
+  [K in keyof T]: T[K] extends unknown[] ? string : T[K];
+};
+
 function mapFlatArraysToStrings<T extends object>(obj: T): FlatArrayToStringMapper<T> {
-  const result = {} as Record<string, unknown>;
+  const result: Partial<FlatArrayToStringMapper<T>> = {};
   
-  (Object.keys(obj) as Array<keyof T>).forEach(key => {
-    const value = obj[key];
-    result[key as string] = Array.isArray(value) ? value.join(', ') : value;
-  });
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const value = obj[key];
+      
+      if (Array.isArray(value)) {
+        (result as Record<string, unknown>)[key] = value.join(', ');
+      } else {
+        (result as Record<string, unknown>)[key] = value;
+      }
+    }
+  }
   
   return result as FlatArrayToStringMapper<T>;
 }
