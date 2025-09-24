@@ -1,101 +1,152 @@
-const mapFiltersToQueryParams = (filters: Record<string, any>): Record<string, string> => {
-  const queryParams: Record<string, string> = {};
-
-  Object.entries(filters).forEach(([key, value]) => {
-    if (!value || (Array.isArray(value) && value.length === 0)) return;
-
-    const mapperConfig = FILTER_MAPPER[key as keyof typeof FILTER_MAPPER];
-    
-    if (!mapperConfig) {
-      // Если нет маппера, используем оригинальный ключ
-      if (Array.isArray(value)) {
-        queryParams[key] = value.join(',');
-      } else {
-        queryParams[key] = value.toString();
-      }
-      return;
-    }
-
-    if (Array.isArray(mapperConfig)) {
-      // Для дат - разбиваем по диапазону (ожидаем массив из 2 значений)
-      if (Array.isArray(value) && value.length === 2) {
-        const [startDate, endDate] = value;
-        if (startDate) queryParams[mapperConfig[0]] = startDate;
-        if (endDate) queryParams[mapperConfig[1]] = endDate;
-      }
-    } else if (Array.isArray(value)) {
-      // Для массивов с несколькими значениями - объединяем через запятую
-      queryParams[mapperConfig] = value.join(',');
-    } else {
-      // Для одиночных значений
-      queryParams[mapperConfig] = value.toString();
-    }
-  });
-
-  return queryParams;
-};
-
-// Примеры использования:
-
-// 1. Массив с несколькими значениями
-const filters1 = {
-  stage: [3, 4, 5],
-  insurance: [2, 7],
-  award: ['212', '300']
-};
-
-const result1 = mapFiltersToQueryParams(filters1);
-// Результат:
-// {
-//   deal_stages: "3,4,5",
-//   insurance_types: "2,7",
-//   award: "212,300"
-// }
-
-// 2. Одиночные значения
-const filters2 = {
-  stage: [3],
-  insurance: [2],
-  award: ['212']
-};
-
-const result2 = mapFiltersToQueryParams(filters2);
-// Результат:
-// {
-//   deal_stages: "3",
-//   insurance_types: "2",
-//   award: "212"
-// }
-
-// 3. Даты (особый случай - всегда 2 значения)
-const filters3 = {
-  start_date: ['2024-09-22', '2025-09-22'],
-  end_date: ['2025-01-01', '2025-01-18']
-};
-
-const result3 = mapFiltersToQueryParams(filters3);
-// Результат:
-// {
-//   start_date_from: "2024-09-22",
-//   start_date_to: "2025-09-22",
-//   end_date_from: "2025-01-01",
-//   end_date_to: "2025-01-18"
-// }
-
-// 4. Смешанный случай
-const filters4 = {
-  stage: [3, 4],
-  insurance: [2],
-  start_date: ['2024-09-22', '2025-09-22'],
-  manager: ['221']
-};
-
-const result4 = mapFiltersToQueryParams(filters4);
-// Результат:
-// {
-//   deal_stages: "3,4",
-//   insurance_types: "2",
-//   start_date_from: "2024-09-22",
-//   start_date_to: "2025-09-22",
-//   last_name: "221"
-// }
+const clientContractsData = [
+  {
+    key: '1',
+    number: 'ТТТ 7062143439',
+    product: 'Правила обязательного страхования',
+    premium: '5 787,49 ₽',
+    startDate: '03.08.2024',
+    endDate: '02.08.2025',
+    branch: 'Казанский филиал',
+    declaredLoss: '0 ₽',
+    paidLoss: '0 ₽',
+    status: 'ЗАВЕРШЕНО',
+    manager: 'Абрарова Р. Д.',
+    callDate: '03.07.2025',
+    callStatus: 'ЗВОНОК ВЫПОЛНЕН'
+  },
+  {
+    key: '2',
+    number: 'ТТТ 7062143440',
+    product: 'Расширенное автострахование',
+    premium: '12 450,00 ₽',
+    startDate: '15.01.2024',
+    endDate: '14.01.2025',
+    branch: 'Московский филиал',
+    declaredLoss: '8 200,00 ₽',
+    paidLoss: '7 800,00 ₽',
+    status: 'АКТИВЕН',
+    manager: 'Петров И. С.',
+    callDate: '20.06.2025',
+    callStatus: 'ОЖИДАЕТСЯ'
+  },
+  {
+    key: '3',
+    number: 'ТТТ 7062143441',
+    product: 'Страхование недвижимости',
+    premium: '23 780,50 ₽',
+    startDate: '22.03.2024',
+    endDate: '21.03.2025',
+    branch: 'Санкт-Петербургский филиал',
+    declaredLoss: '15 300,00 ₽',
+    paidLoss: '14 500,00 ₽',
+    status: 'НА РАССМОТРЕНИИ',
+    manager: 'Сидорова А. В.',
+    callDate: '10.07.2025',
+    callStatus: 'ЗВОНОК ВЫПОЛНЕН'
+  },
+  {
+    key: '4',
+    number: 'ТТТ 7062143442',
+    product: 'Корпоративное страхование',
+    premium: '45 200,00 ₽',
+    startDate: '10.05.2024',
+    endDate: '09.05.2025',
+    branch: 'Новосибирский филиал',
+    declaredLoss: '0 ₽',
+    paidLoss: '0 ₽',
+    status: 'АКТИВЕН',
+    manager: 'Козлов Д. М.',
+    callDate: '25.08.2025',
+    callStatus: 'ЗАПЛАНИРОВАН'
+  },
+  {
+    key: '5',
+    number: 'ТТТ 7062143443',
+    product: 'Медицинское страхование',
+    premium: '8 900,75 ₽',
+    startDate: '30.11.2024',
+    endDate: '29.11.2025',
+    branch: 'Екатеринбургский филиал',
+    declaredLoss: '3 500,00 ₽',
+    paidLoss: '3 200,00 ₽',
+    status: 'ЗАВЕРШЕНО',
+    manager: 'Абрарова Р. Д.',
+    callDate: '15.09.2025',
+    callStatus: 'ЗВОНОК ВЫПОЛНЕН'
+  },
+  {
+    key: '6',
+    number: 'ТТТ 7062143444',
+    product: 'Страхование путешествий',
+    premium: '3 200,00 ₽',
+    startDate: '05.07.2024',
+    endDate: '04.07.2025',
+    branch: 'Казанский филиал',
+    declaredLoss: '1 800,00 ₽',
+    paidLoss: '1 650,00 ₽',
+    status: 'АКТИВЕН',
+    manager: 'Иванова О. П.',
+    callDate: '12.08.2025',
+    callStatus: 'ОТМЕНЕН'
+  },
+  {
+    key: '7',
+    number: 'ТТТ 7062143445',
+    product: 'Инвестиционное страхование',
+    premium: '67 300,00 ₽',
+    startDate: '18.09.2024',
+    endDate: '17.09.2025',
+    branch: 'Московский филиал',
+    declaredLoss: '0 ₽',
+    paidLoss: '0 ₽',
+    status: 'АКТИВЕН',
+    manager: 'Петров И. С.',
+    callDate: '30.10.2025',
+    callStatus: 'ЗАПЛАНИРОВАН'
+  },
+  {
+    key: '8',
+    number: 'ТТТ 7062143446',
+    product: 'Страхование ответственности',
+    premium: '15 600,25 ₽',
+    startDate: '12.02.2024',
+    endDate: '11.02.2025',
+    branch: 'Ростовский филиал',
+    declaredLoss: '12 400,00 ₽',
+    paidLoss: '11 900,00 ₽',
+    status: 'ЗАВЕРШЕНО',
+    manager: 'Абрарова Р. Д.',
+    callDate: '08.06.2025',
+    callStatus: 'ЗВОНОК ВЫПОЛНЕН'
+  },
+  {
+    key: '9',
+    number: 'ТТТ 7062143447',
+    product: 'Сельскохозяйственное страхование',
+    premium: '28 900,00 ₽',
+    startDate: '25.04.2024',
+    endDate: '24.04.2025',
+    branch: 'Краснодарский филиал',
+    declaredLoss: '22 100,00 ₽',
+    paidLoss: '20 800,00 ₽',
+    status: 'НА РАССМОТРЕНИИ',
+    manager: 'Смирнов В. К.',
+    callDate: '18.11.2025',
+    callStatus: 'ОЖИДАЕТСЯ'
+  },
+  {
+    key: '10',
+    number: 'ТТТ 7062143448',
+    product: 'ДМС для сотрудников',
+    premium: '32 450,80 ₽',
+    startDate: '08.12.2024',
+    endDate: '07.12.2025',
+    branch: 'Казанский филиал',
+    declaredLoss: '5 700,00 ₽',
+    paidLoss: '5 200,00 ₽',
+    status: 'АКТИВЕН',
+    manager: 'Абрарова Р. Д.',
+    callDate: '22.07.2025',
+    callStatus: 'ЗВОНОК ВЫПОЛНЕН'
+  }
+];
