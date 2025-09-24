@@ -1,11 +1,442 @@
-import { useQuery } from "@tanstack/react-query";
-import { todoListApi } from "./api";
-
-export function useTodoList() {
-  const { data: todoItems, error, isLoading,refetch , isError} = useQuery({
-    ...todoListApi.getTodoListQueryOptions(),
-    select: data => data.toReversed(),    
-  });
-
-  return { error, todoItems, isLoading, refetch };
-}
+const tableDeals: TableDeal[] = [
+  {
+    id: "DEAL-001",
+    prolongation_product_data: "Prolongation Premium",
+    stage: "Active",
+    start_date: "2024-01-15",
+    end_date: "2024-12-15",
+    award: "15000",
+    declared_loss: "3200",
+    paid_loss: "2800",
+    origin: { premium: 15000, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-002",
+    prolongation_product_data: "Extended Coverage",
+    stage: 2,
+    start_date: "2024-02-01",
+    end_date: "2024-11-30",
+    award: "27500",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 27500, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-003",
+    prolongation_product_data: "Renewal Plus",
+    stage: "Pending",
+    start_date: "2024-03-10",
+    end_date: "2025-03-09",
+    award: "18900",
+    declared_loss: "12500",
+    paid_loss: "11500",
+    origin: { premium: 18900, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-004",
+    prolongation_product_data: "Basic Prolongation",
+    stage: 3,
+    start_date: "2024-01-05",
+    end_date: "2024-12-31",
+    award: "8200",
+    declared_loss: "4500",
+    paid_loss: "4200",
+    origin: { premium: 8200, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-005",
+    prolongation_product_data: "Premium Extension",
+    stage: "Completed",
+    start_date: "2024-04-20",
+    end_date: "2025-04-19",
+    award: "35600",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 35600, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-006",
+    prolongation_product_data: "Standard Renewal",
+    stage: 1,
+    start_date: "2024-05-15",
+    end_date: "2025-05-14",
+    award: "12300",
+    declared_loss: "7800",
+    paid_loss: "7500",
+    origin: { premium: 12300, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-007",
+    prolongation_product_data: "Elite Prolongation",
+    stage: "Active",
+    start_date: "2024-06-01",
+    end_date: "2025-05-31",
+    award: "41200",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 41200, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-008",
+    prolongation_product_data: "Basic Extension",
+    stage: 4,
+    start_date: "2024-02-15",
+    end_date: "2025-02-14",
+    award: "9500",
+    declared_loss: "3200",
+    paid_loss: "3000",
+    origin: { premium: 9500, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-009",
+    prolongation_product_data: "Advanced Renewal",
+    stage: "Pending",
+    start_date: "2024-07-10",
+    end_date: "2025-07-09",
+    award: "28700",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 28700, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-010",
+    prolongation_product_data: "Pro Long",
+    stage: 2,
+    start_date: "2024-03-25",
+    end_date: "2025-03-24",
+    award: "16400",
+    declared_loss: "11200",
+    paid_loss: "11000",
+    origin: { premium: 16400, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-011",
+    prolongation_product_data: "Ultimate Coverage",
+    stage: "Active",
+    start_date: "2024-08-05",
+    end_date: "2025-08-04",
+    award: "52300",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 52300, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-012",
+    prolongation_product_data: "Simple Prolongation",
+    stage: 3,
+    start_date: "2024-04-12",
+    end_date: "2025-04-11",
+    award: "11800",
+    declared_loss: "6400",
+    paid_loss: "6000",
+    origin: { premium: 11800, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-013",
+    prolongation_product_data: "Business Extension",
+    stage: "Completed",
+    start_date: "2024-09-15",
+    end_date: "2025-09-14",
+    award: "38900",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 38900, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-014",
+    prolongation_product_data: "Value Renewal",
+    stage: 1,
+    start_date: "2024-05-20",
+    end_date: "2025-05-19",
+    award: "14200",
+    declared_loss: "8900",
+    paid_loss: "8500",
+    origin: { premium: 14200, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-015",
+    prolongation_product_data: "Premium Prolongation",
+    stage: "Active",
+    start_date: "2024-10-01",
+    end_date: "2025-09-30",
+    award: "47600",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 47600, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-016",
+    prolongation_product_data: "Standard Extension",
+    stage: 4,
+    start_date: "2024-06-10",
+    end_date: "2025-06-09",
+    award: "10500",
+    declared_loss: "5200",
+    paid_loss: "5000",
+    origin: { premium: 10500, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-017",
+    prolongation_product_data: "Elite Renewal",
+    stage: "Pending",
+    start_date: "2024-11-15",
+    end_date: "2025-11-14",
+    award: "33400",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 33400, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-018",
+    prolongation_product_data: "Basic Long",
+    stage: 2,
+    start_date: "2024-07-22",
+    end_date: "2025-07-21",
+    award: "12800",
+    declared_loss: "9800",
+    paid_loss: "9500",
+    origin: { premium: 12800, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-019",
+    prolongation_product_data: "Advanced Prolongation",
+    stage: "Active",
+    start_date: "2024-12-05",
+    end_date: "2025-12-04",
+    award: "49800",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 49800, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-020",
+    prolongation_product_data: "Pro Extension",
+    stage: 3,
+    start_date: "2024-08-18",
+    end_date: "2025-08-17",
+    award: "13600",
+    declared_loss: "7100",
+    paid_loss: "6800",
+    origin: { premium: 13600, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-021",
+    prolongation_product_data: "Ultimate Renewal",
+    stage: "Completed",
+    start_date: "2025-01-10",
+    end_date: "2026-01-09",
+    award: "56700",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 56700, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-022",
+    prolongation_product_data: "Simple Extension",
+    stage: 1,
+    start_date: "2024-09-25",
+    end_date: "2025-09-24",
+    award: "11500",
+    declared_loss: "8300",
+    paid_loss: "8000",
+    origin: { premium: 11500, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-023",
+    prolongation_product_data: "Business Prolongation",
+    stage: "Active",
+    start_date: "2025-02-15",
+    end_date: "2026-02-14",
+    award: "43200",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 43200, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-024",
+    prolongation_product_data: "Value Extension",
+    stage: 4,
+    start_date: "2024-10-30",
+    end_date: "2025-10-29",
+    award: "12400",
+    declared_loss: "5900",
+    paid_loss: "5600",
+    origin: { premium: 12400, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-025",
+    prolongation_product_data: "Premium Renewal",
+    stage: "Pending",
+    start_date: "2025-03-20",
+    end_date: "2026-03-19",
+    award: "51100",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 51100, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-026",
+    prolongation_product_data: "Standard Long",
+    stage: 2,
+    start_date: "2024-11-12",
+    end_date: "2025-11-11",
+    award: "14700",
+    declared_loss: "10600",
+    paid_loss: "10200",
+    origin: { premium: 14700, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-027",
+    prolongation_product_data: "Elite Extension",
+    stage: "Active",
+    start_date: "2025-04-05",
+    end_date: "2026-04-04",
+    award: "47800",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 47800, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-028",
+    prolongation_product_data: "Basic Pro",
+    stage: 3,
+    start_date: "2024-12-18",
+    end_date: "2025-12-17",
+    award: "13900",
+    declared_loss: "7600",
+    paid_loss: "7300",
+    origin: { premium: 13900, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-029",
+    prolongation_product_data: "Advanced Extension",
+    stage: "Completed",
+    start_date: "2025-05-10",
+    end_date: "2026-05-09",
+    award: "52300",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 52300, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-030",
+    prolongation_product_data: "Pro Renewal",
+    stage: 1,
+    start_date: "2025-01-25",
+    end_date: "2026-01-24",
+    award: "15800",
+    declared_loss: "12400",
+    paid_loss: "12000",
+    origin: { premium: 15800, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-031",
+    prolongation_product_data: "Ultimate Extension",
+    stage: "Active",
+    start_date: "2025-06-15",
+    end_date: "2026-06-14",
+    award: "58900",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 58900, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-032",
+    prolongation_product_data: "Simple Long",
+    stage: 4,
+    start_date: "2025-02-28",
+    end_date: "2026-02-27",
+    award: "13200",
+    declared_loss: "6800",
+    paid_loss: "6500",
+    origin: { premium: 13200, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-033",
+    prolongation_product_data: "Business Renewal",
+    stage: "Pending",
+    start_date: "2025-07-20",
+    end_date: "2026-07-19",
+    award: "44500",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 44500, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-034",
+    prolongation_product_data: "Value Long",
+    stage: 2,
+    start_date: "2025-03-15",
+    end_date: "2026-03-14",
+    award: "16900",
+    declared_loss: "13500",
+    paid_loss: "13000",
+    origin: { premium: 16900, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-035",
+    prolongation_product_data: "Premium Extension Pro",
+    stage: "Active",
+    start_date: "2025-08-10",
+    end_date: "2026-08-09",
+    award: "51200",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 51200, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-036",
+    prolongation_product_data: "Standard Pro",
+    stage: 3,
+    start_date: "2025-04-22",
+    end_date: "2026-04-21",
+    award: "14300",
+    declared_loss: "8200",
+    paid_loss: "7900",
+    origin: { premium: 14300, riskLevel: "Medium" }
+  },
+  {
+    id: "DEAL-037",
+    prolongation_product_data: "Elite Long",
+    stage: "Completed",
+    start_date: "2025-09-05",
+    end_date: "2026-09-04",
+    award: "49800",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 49800, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-038",
+    prolongation_product_data: "Basic Ultimate",
+    stage: 1,
+    start_date: "2025-05-30",
+    end_date: "2026-05-29",
+    award: "17400",
+    declared_loss: "14200",
+    paid_loss: "13800",
+    origin: { premium: 17400, riskLevel: "High" }
+  },
+  {
+    id: "DEAL-039",
+    prolongation_product_data: "Advanced Long",
+    stage: "Active",
+    start_date: "2025-10-15",
+    end_date: "2026-10-14",
+    award: "53400",
+    declared_loss: "0",
+    paid_loss: "0",
+    origin: { premium: 53400, riskLevel: "Low" }
+  },
+  {
+    id: "DEAL-040",
+    prolongation_product_data: "Pro Ultimate",
+    stage: 4,
+    start_date: "2025-06-18",
+    end_date: "2026-06-17",
+    award: "15100",
+    declared_loss: "9100",
+    paid_loss: "8800",
+    origin: { premium: 15100, riskLevel: "Medium" }
+  }
+];
