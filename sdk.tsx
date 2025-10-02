@@ -1,40 +1,169 @@
-import { useCallback, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom'; // Убери эти импорты, если не используешь react-router
+// useFormStore.ts
+import { useSyncExternalStore, useRef, useEffect, useCallback } from 'react';
+import { useForm, FormProvider, useWatch } from 'react-hook-form';
+import { formStore } from './formStore';
+import { FormCrmData } from './types';
 
-const useNavigationLogger = (componentName = 'Unknown Component') => {
-  const location = useLocation(); // Для react-router
-  const navigate = useNavigate(); // Для react-router
+export const useFormStore = () => {
+  const state = useSyncExternalStore(formStore.subscribe, formStore.getSnapshot);
+  
+  const methods = useForm<FormCrmData>({
+    mode: 'onTouched',
+    resolver: zodResolver(formSchemaCrm),
+    defaultValues: state.formData // инициализация значениями из стора
+  });
 
-  const sendLog = useCallback((message, type = 'info') => {
-    // В реальном проекте здесь можно отправлять логи на сервер
-    console.log(`[${type.toUpperCase()}] ${new Date().toISOString()}: [${componentName}] ${message}`);
-  }, [componentName]);
+  const { control, setValue, getValues } = methods;
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Логирование изменений маршрута (для react-router)
+  // Регистрация ref для скролла
   useEffect(() => {
-    sendLog(`Переход на путь: ${location.pathname + location.search + location.hash}`, 'navigation');
-  }, [location, sendLog]);
+    if (scrollRef.current) {
+      formStore.registerScrollRef(scrollRef);
+    }
+  }, []);
 
-  // Логирование нажатия кнопки "назад" и других popstate-событий
+  // Синхронизация изменений ИЗ формы В стор
+  const currentFormValues = useWatch({ control });
+
   useEffect(() => {
-    const handlePopState = (event) => {
-      // event.state содержит состояние, переданное при pushState/replaceState
-      sendLog(`Сработала кнопка "Назад" или "Вперед". Текущий URL: ${window.location.href}`, 'back_forward');
-    };
+    // При изменении значений в форме - обновляем стор
+    formStore.setFormData(currentFormValues);
+  }, [currentFormValues]);
 
-    window.addEventListener('popstate', handlePopState);
+  // Синхронизация изменений ИЗ стора В форму
+  useEffect(() => {
+    const { formData } = state;
+    const currentValues = getValues();
+    
+    // Проверяем, какие поля изменились в сторе и обновляем форму
+    Object.keys(formData).forEach((key) => {
+      const fieldName = key as keyof FormCrmData;
+      if (formData[fieldName] !== currentValues[fieldName]) {
+        setValue(fieldName, formData[fieldName], {
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true
+        });
+      }
+    });
+  }, [state.formData, setValue, getValues]);
 
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [sendLog]);
+  // Функция для установки значения в обе системы
+  const setFieldValue = useCallback(<K extends keyof FormCrmData>(
+    fieldName: K, 
+    value: FormCrmData[K]
+  ) => {
+    // Устанавливаем в react-hook-form
+    setValue(fieldName, value, {
+      shouldValidate: true,
+      shouldDirty: true
+    });
+    // Устанавливаем в стор
+    formStore.setFieldValue(fieldName, value);
+  }, [setValue]);
 
-  // Опционально: можно вернуть функцию для ручного логирования редиректов
-  const logRedirect = useCallback((from, to) => {
-    sendLog(`Редирект с ${from} на ${to}`, 'redirect');
-  }, [sendLog]);
+  const FormProviderWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    return <FormProvider {...methods}>{children}</FormProvider>;
+  };
 
-  return { logRedirect };
+  return {
+    ...state,
+    ...methods,
+    scrollRef,
+    FormProvider: FormProviderWrapper,
+    setFieldValue,
+    setState: formStore.setState,
+    setStep: formStore.setStep,
+    scrollToElement: formStore.scrollToElement
+  };
 };
 
-export default useNavigationLogger;
+// formStore.ts
+interface FormCrmData {
+  PhoneNumber: string;
+  Email?: string;
+  Name?: string;
+  // добавьте другие поля по необходимости
+}
+
+interface FormState {
+  isSecondStep: boolean;
+  formData: FormCrmData;
+  scrollElementRef: React.RefObject<HTMLElement> | null;
+  timerId: NodeJS.Timeout | null;
+}
+
+let formState: FormState = {
+  isSecondStep: false,
+  formData: {
+    PhoneNumber: '',
+    Email: '',
+    Name: ''
+  },
+  scrollElementRef: null,
+  timerId: null
+};
+
+let listeners: (() => void)[] = [];
+
+export const formStore = {
+  subscribe(listener: () => void) {
+    listeners = [...listeners, listener];
+    return () => {
+      listeners = listeners.filter(l => l !== listener);
+    };
+  },
+  
+  getSnapshot() {
+    return formState;
+  },
+  
+  // Установка значения поля и синхронизация
+  setFieldValue<K extends keyof FormCrmData>(fieldName: K, value: FormCrmData[K]) {
+    formState.formData[fieldName] = value;
+    listeners.forEach((listener) => listener());
+  },
+  
+  // Установка всех данных формы
+  setFormData(data: Partial<FormCrmData>) {
+    formState.formData = { ...formState.formData, ...data };
+    listeners.forEach((listener) => listener());
+  },
+  
+  // Получение значения конкретного поля
+  getFieldValue<K extends keyof FormCrmData>(fieldName: K): FormCrmData[K] {
+    return formState.formData[fieldName];
+  },
+  
+  setStep(isSecondStep: boolean) {
+    formState.isSecondStep = isSecondStep;
+    listeners.forEach((listener) => listener());
+  },
+  
+  registerScrollRef(ref: React.RefObject<HTMLElement>) {
+    formState.scrollElementRef = ref;
+    listeners.forEach((listener) => listener());
+  },
+  
+  scrollToElement() {
+    if (formState.scrollElementRef?.current) {
+      formState.scrollElementRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  },
+  
+  clearTimer() {
+    if (formState.timerId) {
+      clearTimeout(formState.timerId);
+      formState.timerId = null;
+    }
+  },
+  
+  setTimer(timerId: NodeJS.Timeout) {
+    formState.timerId = timerId;
+    listeners.forEach((listener) => listener());
+  }
+};
