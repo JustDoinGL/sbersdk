@@ -1,54 +1,40 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Для React Native
-// import { useNavigate, useLocation } from 'react-router-dom'; // Для React Web
+import { useCallback, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom'; // Убери эти импорты, если не используешь react-router
 
-const useNavigationLogger = (screenName) => {
-  // Для React Native
-  const navigation = useNavigation();
-
-  // Для React Web (раскомментировать при необходимости)
-  // const navigate = useNavigate();
-  // const location = useLocation();
+const useNavigationLogger = (componentName = 'Unknown Component') => {
+  const location = useLocation(); // Для react-router
+  const navigate = useNavigate(); // Для react-router
 
   const sendLog = useCallback((message, type = 'info') => {
-    // В реальном приложении здесь может быть отправка на сервер
-    console.log(`[${type.toUpperCase()}] ${new Date().toISOString()}: ${message}`);
-  }, []);
+    // В реальном проекте здесь можно отправлять логи на сервер
+    console.log(`[${type.toUpperCase()}] ${new Date().toISOString()}: [${componentName}] ${message}`);
+  }, [componentName]);
 
-  // Логирование событий фокуса и потери фокуса (React Native)
-  useFocusEffect(
-    useCallback(() => {
-      sendLog(`Экран "${screenName}" в фокусе`, 'navigation');
-
-      return () => {
-        sendLog(`Экран "${screenName}" потерял фокус`, 'navigation');
-      };
-    }, [screenName, sendLog])
-  );
-
-  // Логирование нажатия аппаратной кнопки "Назад" (Android, React Native)
+  // Логирование изменений маршрута (для react-router)
   useEffect(() => {
-    const backHandler = () => {
-      sendLog(`Нажата кнопка "Назад" на экране "${screenName}"`, 'back_press');
-      // Возврат false позволяет выполнить стандартное действие (закрыть экран)
-      return false;
+    sendLog(`Переход на путь: ${location.pathname + location.search + location.hash}`, 'navigation');
+  }, [location, sendLog]);
+
+  // Логирование нажатия кнопки "назад" и других popstate-событий
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // event.state содержит состояние, переданное при pushState/replaceState
+      sendLog(`Сработала кнопка "Назад" или "Вперед". Текущий URL: ${window.location.href}`, 'back_forward');
     };
 
-    BackHandler.addEventListener('hardwareBackPress', backHandler);
+    window.addEventListener('popstate', handlePopState);
 
     return () => {
-      BackHandler.removeEventListener('hardwareBackPress', backHandler);
+      window.removeEventListener('popstate', handlePopState);
     };
-  }, [screenName, sendLog]);
+  }, [sendLog]);
 
-  // Логирование программных переходов "Назад" (универсально)
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      sendLog(`Запуск редиректа (действие: ${e.data.action.type}) с экрана "${screenName}"`, 'redirect');
-    });
+  // Опционально: можно вернуть функцию для ручного логирования редиректов
+  const logRedirect = useCallback((from, to) => {
+    sendLog(`Редирект с ${from} на ${to}`, 'redirect');
+  }, [sendLog]);
 
-    return unsubscribe;
-  }, [navigation, screenName, sendLog]);
+  return { logRedirect };
 };
 
 export default useNavigationLogger;
