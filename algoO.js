@@ -1,35 +1,84 @@
-export const useFormStore = () => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const state = useSyncExternalStore(formStore.subscribe, formStore.getSnapshot);
+import { useCallback, useEffect, useRef } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 
-  const methods = useForm<FormCrmData>({
-    mode: 'onTouched',
-    resolver: zodResolver(fromSchemaCrm)
+// Кастомный хук для дебаунса
+function useDebounce(callback, delay) {
+  const timeoutRef = useRef(null);
+
+  const debouncedCallback = useCallback((...args) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    timeoutRef.current = setTimeout(() => {
+      callback(...args);
+    }, delay);
+  }, [callback, delay]);
+
+  // Очистка при размонтировании
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return debouncedCallback;
+}
+
+function MyForm() {
+  const { register, control } = useForm({
+    defaultValues: {
+      search: '',
+      email: ''
+    }
   });
 
-  const { watch, setValue } = methods;
+  // Отслеживаем значение поля
+  const searchValue = useWatch({
+    control,
+    name: 'search'
+  });
 
-  // Следим за изменением номера и синхронизируем
+  const emailValue = useWatch({
+    control,
+    name: 'email'
+  });
+
+  // Функция, которая будет вызываться после дебаунса
+  const handleFieldChange = useCallback((fieldName, value) => {
+    console.log(`Поле ${fieldName} изменилось:`, value);
+    // Здесь можно делать API запросы, валидацию и т.д.
+  }, []);
+
+  const debouncedHandler = useDebounce(handleFieldChange, 500);
+
+  // Отслеживаем изменения поля search
   useEffect(() => {
-    const subscription = watch((value, { name }) => {
-      if (name === 'phoneNumber' || name === 'alternativePhone') {
-        // Если изменился один номер, устанавливаем значение в другом поле
-        if (name === 'phoneNumber' && value.phoneNumber) {
-          setValue('alternativePhone', value.phoneNumber, { 
-            shouldValidate: true,
-            shouldDirty: false 
-          });
-        } else if (name === 'alternativePhone' && value.alternativePhone) {
-          setValue('phoneNumber', value.alternativePhone, { 
-            shouldValidate: true,
-            shouldDirty: false 
-          });
-        }
-      }
-    });
+    if (searchValue !== undefined) {
+      debouncedHandler('search', searchValue);
+    }
+  }, [searchValue, debouncedHandler]);
 
-    return () => subscription.unsubscribe();
-  }, [watch, setValue]);
+  // Отслеживаем изменения поля email
+  useEffect(() => {
+    if (emailValue !== undefined) {
+      debouncedHandler('email', emailValue);
+    }
+  }, [emailValue, debouncedHandler]);
 
-  // ... остальной код
-};
+  return (
+    <form>
+      <input
+        {...register('search')}
+        placeholder="Поиск..."
+      />
+      <input
+        {...register('email')}
+        placeholder="Email"
+        type="email"
+      />
+    </form>
+  );
+}
