@@ -1,55 +1,112 @@
-import { useQuery } from '@tanstack/react-query';
-import { useQueryGetContractLoss } from "@/4_entities/deal/api";
-import { useQueryGetDeal } from "@/4_entities/deal/api/useQueryGetDeal";
-import { DealDto } from "@/5_shared/api";
-import { GetDealsProps } from "@/5_shared/api/endpoints/deal_methods";
+// useSyncedForm.ts
+import { useSyncExternalStore } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { formStore } from './formStore';
 
-interface TContractLoss {
-  // добавьте поля из ответа getContractLoss
-}
+export const useSyncedForm = () => {
+  // Подписка на стор
+  const storeState = useSyncExternalStore(
+    formStore.subscribe,
+    formStore.getSnapshot
+  );
 
-interface THelper extends DealDto, TContractLoss {}
-
-export const useProlongationDeals = (params: GetDealsProps) => {
-  // Получаем сделки
-  const { data: dealData, isLoading: dealsLoading, error: dealsError } = useQueryGetDeal(params);
-
-  // Извлекаем GUID пролонгационных контрактов
-  const prolongationDeals = dealData?.results?.filter((el: DealDto) => el.prolongation) || [];
-  const prolongationGuids = prolongationDeals.map((el: DealDto) => el.prolongation_contract_guid);
-
-  // Используем useQueries для параллельных запросов
-  const contractLossQueries = useQueries({
-    queries: prolongationGuids.map((guid) => ({
-      queryKey: ['contractLoss', guid],
-      queryFn: () => api.dwh.getContractLoss({ guid }),
-      enabled: !!guid && prolongationGuids.length > 0,
-    })),
+  // Инициализация react-hook-form с значениями из стора
+  const form = useForm({
+    defaultValues: storeState.formData
   });
 
-  // Объединяем данные
-  const enrichedResults = prolongationDeals.map((deal: DealDto, index: number) => {
-    const contractLossData = contractLossQueries[index]?.data;
-    return {
-      ...deal,
-      ...contractLossData,
-    } as THelper;
-  });
+  const { control, setValue, getValues } = form;
 
-  const isLoading = dealsLoading || contractLossQueries.some(query => query.isLoading);
-  const errors = [
-    dealsError,
-    ...contractLossQueries.map(query => query.error)
-  ].filter(Boolean);
+  // Синхронизация изменений из формы в стор
+  const username = useWatch({ control, name: 'username' });
+  const email = useWatch({ control, name: 'email' });
+  const phone = useWatch({ control, name: 'phone' });
+
+  // Эффекты для синхронизации каждого поля
+  React.useEffect(() => {
+    if (username !== undefined) {
+      formStore.setFieldValue('username', username);
+    }
+  }, [username]);
+
+  React.useEffect(() => {
+    if (email !== undefined) {
+      formStore.setFieldValue('email', email);
+    }
+  }, [email]);
+
+  React.useEffect(() => {
+    if (phone !== undefined) {
+      formStore.setFieldValue('phone', phone);
+    }
+  }, [phone]);
+
+  // Функция для установки значения извне
+  const setFieldValue = (fieldName: string, value: any) => {
+    setValue(fieldName, value);
+    formStore.setFieldValue(fieldName, value);
+  };
 
   return {
-    data: {
-      count: enrichedResults.length,
-      next: dealData?.next || 0,
-      previous: dealData?.previous || 0,
-      results: enrichedResults,
-    },
-    isLoading,
-    error: errors.length > 0 ? errors : null,
+    ...form,
+    storeState,
+    setFieldValue
+  };
+};
+
+
+// useSyncedForm.ts
+import { useSyncExternalStore } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { formStore } from './formStore';
+
+export const useSyncedForm = () => {
+  // Подписка на стор
+  const storeState = useSyncExternalStore(
+    formStore.subscribe,
+    formStore.getSnapshot
+  );
+
+  // Инициализация react-hook-form с значениями из стора
+  const form = useForm({
+    defaultValues: storeState.formData
+  });
+
+  const { control, setValue, getValues } = form;
+
+  // Синхронизация изменений из формы в стор
+  const username = useWatch({ control, name: 'username' });
+  const email = useWatch({ control, name: 'email' });
+  const phone = useWatch({ control, name: 'phone' });
+
+  // Эффекты для синхронизации каждого поля
+  React.useEffect(() => {
+    if (username !== undefined) {
+      formStore.setFieldValue('username', username);
+    }
+  }, [username]);
+
+  React.useEffect(() => {
+    if (email !== undefined) {
+      formStore.setFieldValue('email', email);
+    }
+  }, [email]);
+
+  React.useEffect(() => {
+    if (phone !== undefined) {
+      formStore.setFieldValue('phone', phone);
+    }
+  }, [phone]);
+
+  // Функция для установки значения извне
+  const setFieldValue = (fieldName: string, value: any) => {
+    setValue(fieldName, value);
+    formStore.setFieldValue(fieldName, value);
+  };
+
+  return {
+    ...form,
+    storeState,
+    setFieldValue
   };
 };
