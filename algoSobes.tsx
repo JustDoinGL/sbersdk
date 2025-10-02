@@ -1,46 +1,31 @@
-import { useFormContext, useWatch } from 'react-hook-form';
+// Добавьте этот хук в компонент формы или создайте отдельный компонент-синхронизатор
+const useSyncPhoneFields = () => {
+    const { control, setValue } = useFormContext();
+    
+    const phone1 = useWatch({ control, name: 'PhoneNumber' });
+    const phone2 = useWatch({ control, name: 'PhoneNumber2' });
 
-const SyncFields = () => {
-  const { control, setValue } = useFormContext();
-  
-  // Отслеживаем первое поле
-  const phoneNumber = useWatch({
-    control,
-    name: 'PhoneNumber',
-  });
-  
-  // Отслеживаем второе поле
-  const phoneNumber2 = useWatch({
-    control,
-    name: 'PhoneNumber2',
-  });
+    React.useEffect(() => {
+        if (phone1 && phone1 !== phone2) {
+            setValue('PhoneNumber2', phone1, { 
+                shouldValidate: true,
+                shouldDirty: true 
+            });
+        }
+    }, [phone1]);
 
-  // Синхронизация PhoneNumber -> PhoneNumber2
-  React.useEffect(() => {
-    if (phoneNumber && phoneNumber !== phoneNumber2) {
-      setValue('PhoneNumber2', phoneNumber, {
-        shouldValidate: true,
-        shouldDirty: true,
-        shouldTouch: true
-      });
-    }
-  }, [phoneNumber, phoneNumber2, setValue]);
+    React.useEffect(() => {
+        if (phone2 && phone2 !== phone1) {
+            setValue('PhoneNumber', phone2, { 
+                shouldValidate: true,
+                shouldDirty: true 
+            });
+        }
+    }, [phone2]);
+};
 
-  // Синхронизация PhoneNumber2 -> PhoneNumber
-  React.useEffect(() => {
-    if (phoneNumber2 && phoneNumber2 !== phoneNumber) {
-      setValue('PhoneNumber', phoneNumber2, {
-        shouldValidate: true,
-        shouldDirty: true,
-        shouldTouch: true
-      });
-    }
-  }, [phoneNumber, phoneNumber2, setValue]);
-
-  return (
-    <div>
-      <input name="PhoneNumber" />
-      <input name="PhoneNumber2" />
-    </div>
-  );
+// Используйте в вашем основном компоненте формы
+const YourFormComponent = () => {
+    useSyncPhoneFields();
+    // ... остальной код формы
 };
