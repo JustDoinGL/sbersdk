@@ -1,102 +1,54 @@
-import { useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef } from 'react';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Для React Native
+// import { useNavigate, useLocation } from 'react-router-dom'; // Для React Web
 
-interface FormData {
-  name: string;
-  email: string;
-  file: FileList;
-}
+const useNavigationLogger = (screenName) => {
+  // Для React Native
+  const navigation = useNavigation();
 
-function MyForm() {
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
+  // Для React Web (раскомментировать при необходимости)
+  // const navigate = useNavigate();
+  // const location = useLocation();
 
-  // Первая мутация - загрузка файла/обработка данных
-  const firstMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData, // FormData для файлов
-      });
-      return response.json();
-    },
-  });
+  const sendLog = useCallback((message, type = 'info') => {
+    // В реальном приложении здесь может быть отправка на сервер
+    console.log(`[${type.toUpperCase()}] ${new Date().toISOString()}: ${message}`);
+  }, []);
 
-  // Вторая мутация - создание записи с результатом первого запроса
-  const secondMutation = useMutation({
-    mutationFn: async (processedData: any) => {
-      const response = await fetch('/api/create-record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(processedData),
-      });
-      return response.json();
-    },
-  });
+  // Логирование событий фокуса и потери фокуса (React Native)
+  useFocusEffect(
+    useCallback(() => {
+      sendLog(`Экран "${screenName}" в фокусе`, 'navigation');
 
-  const onSubmit = async (data: FormData) => {
-    try {
-      // Создаем FormData для отправки файлов
-      const formData = new FormData();
-      formData.append('name', data.name);
-      formData.append('email', data.email);
-      if (data.file[0]) {
-        formData.append('file', data.file[0]);
-      }
-
-      // Первый запрос - обработка и загрузка
-      const firstResult = await firstMutation.mutateAsync(formData);
-      
-      // Сохраняем данные из первого запроса
-      const processedData = {
-        ...firstResult,
-        originalName: data.name,
-        timestamp: new Date().toISOString()
+      return () => {
+        sendLog(`Экран "${screenName}" потерял фокус`, 'navigation');
       };
-
-      // Второй запрос - создание записи
-      const secondResult = await secondMutation.mutateAsync(processedData);
-      
-      console.log('Финальный результат:', secondResult);
-      
-    } catch (error) {
-      console.error('Ошибка при выполнении запросов:', error);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <input 
-        {...register('name', { required: 'Имя обязательно' })} 
-        placeholder="Имя"
-      />
-      {errors.name && <span>{errors.name.message}</span>}
-
-      <input 
-        {...register('email', { 
-          required: 'Email обязателен',
-          pattern: {
-            value: /^\S+@\S+$/i,
-            message: 'Неверный формат email'
-          }
-        })} 
-        placeholder="Email"
-      />
-      {errors.email && <span>{errors.email.message}</span>}
-
-      <input 
-        type="file" 
-        {...register('file', { required: 'Файл обязателен' })} 
-      />
-      {errors.file && <span>{errors.file.message}</span>}
-
-      <button 
-        type="submit" 
-        disabled={firstMutation.isPending || secondMutation.isPending}
-      >
-        {firstMutation.isPending || secondMutation.isPending 
-          ? 'Отправка...' 
-          : 'Отправить'}
-      </button>
-    </form>
+    }, [screenName, sendLog])
   );
-}
+
+  // Логирование нажатия аппаратной кнопки "Назад" (Android, React Native)
+  useEffect(() => {
+    const backHandler = () => {
+      sendLog(`Нажата кнопка "Назад" на экране "${screenName}"`, 'back_press');
+      // Возврат false позволяет выполнить стандартное действие (закрыть экран)
+      return false;
+    };
+
+    BackHandler.addEventListener('hardwareBackPress', backHandler);
+
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', backHandler);
+    };
+  }, [screenName, sendLog]);
+
+  // Логирование программных переходов "Назад" (универсально)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      sendLog(`Запуск редиректа (действие: ${e.data.action.type}) с экрана "${screenName}"`, 'redirect');
+    });
+
+    return unsubscribe;
+  }, [navigation, screenName, sendLog]);
+};
+
+export default useNavigationLogger;
