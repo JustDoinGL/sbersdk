@@ -2,32 +2,45 @@ import { useEffect } from 'react';
 
 function App() {
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Отправка запроса при закрытии вкладки
-      fetch('/api/log-close', {
+    // Функция для отправки данных при покидании страницы
+    const sendCloseData = () => {
+      const data = { 
+        action: 'tab_close', 
+        timestamp: new Date().toISOString() 
+      };
+
+      // Вариант 1: Использование Fetch с keepalive
+      fetch('/api/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // При необходимости можно добавить заголовки, например, для авторизации
+          // 'Authorization': 'Bearer YOUR_TOKEN'
         },
-        body: JSON.stringify({
-          event: 'tab_close',
-          timestamp: new Date().toISOString()
-        }),
-        // Важно: keepalive гарантирует отправку даже при закрытии страницы
-        keepalive: true
+        body: JSON.stringify(data),
+        keepalive: true // ⬅️ Запрос продолжится после закрытия страницы
       });
+
+      // Вариант 2: Использование sendBeacon (альтернатива)
+      // navigator.sendBeacon('/api/log', JSON.stringify(data));
     };
 
+    // Обработчик для события beforeunload
+    const handleBeforeUnload = () => {
+      sendCloseData();
+    };
+
+    // Подписываемся на событие
     window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Очистка при размонтировании компонента
+    // Отписываемся от события при размонтировании компонента
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []);
+  }, []); // Пустой массив зависимостей гарантирует, что эффект выполнится один раз
 
   return (
-    <div>Ваше приложение</div>
+    <div>Содержимое вашего приложения</div>
   );
 }
 
