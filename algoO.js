@@ -1,47 +1,39 @@
-import { useEffect } from 'react';
 
-function App() {
-  useEffect(() => {
-    // Функция для отправки данных при покидании страницы
-    const sendCloseData = () => {
-      const data = { 
-        action: 'tab_close', 
-        timestamp: new Date().toISOString() 
-      };
-
-      // Вариант 1: Использование Fetch с keepalive
-      fetch('/api/log', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // При необходимости можно добавить заголовки, например, для авторизации
-          // 'Authorization': 'Bearer YOUR_TOKEN'
-        },
-        body: JSON.stringify(data),
-        keepalive: true // ⬅️ Запрос продолжится после закрытия страницы
-      });
-
-      // Вариант 2: Использование sendBeacon (альтернатива)
-      // navigator.sendBeacon('/api/log', JSON.stringify(data));
+useEffect(() => {
+  const handleBeforeUnload = (event) => {
+    // Добавляем задержку чтобы успеть увидеть запрос в Network
+    event.preventDefault();
+    
+    const data = {
+      event: 'tab_close',
+      timestamp: new Date().toISOString()
     };
 
-    // Обработчик для события beforeunload
-    const handleBeforeUnload = () => {
-      sendCloseData();
-    };
+    // Вариант 1: с console.log перед отправкой
+    console.log('🔄 Отправка запроса при закрытии...');
+    
+    fetch('/api/log-close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      keepalive: true
+    });
 
-    // Подписываемся на событие
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Вариант 2: с отправкой в тестовый эндпоинт
+    fetch('https://httpbin.org/post', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      keepalive: true
+    });
 
-    // Отписываемся от события при размонтировании компонента
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []); // Пустой массив зависимостей гарантирует, что эффект выполнится один раз
+    // Принудительная задержка для тестирования
+    const startTime = Date.now();
+    while (Date.now() - startTime < 100) {
+      // Ждем 100ms чтобы запрос успел отправиться
+    }
+  };
 
-  return (
-    <div>Содержимое вашего приложения</div>
-  );
-}
-
-export default App;
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, []);
