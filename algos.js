@@ -5,15 +5,21 @@ const onSubmit = (data: FormCrmData) => {
     label: analyticLabel
   });
 
-  // Перезаписываем leadAdditionalParameters
   const newForm = {
     ...form,
-    [service]: {
-      ...form[service],
-      leads: {
-        ...form[service].leads,
-        data_leadAdditionalParameters: data.leadAdditionalParameters // перезаписываем
-      }
+    service: {
+      ...form.service,
+      leads: [
+        {
+          ...form.service.leads[0],
+          leadAdditionalParameters: data.leadAdditionalParameters 
+            ? data.leadAdditionalParameters.map(param => ({
+                additionalParameterCode: param.additionalParameterCode,
+                additionalParameterValue: param.additionalParameterValue
+              }))
+            : []
+        }
+      ]
     }
   };
 
@@ -21,9 +27,7 @@ const onSubmit = (data: FormCrmData) => {
   setFormData({
     url: form.service.url,
     data: {
-      ...sberCrmDataCollection({
-        ...newForm // используем обновленную форму
-      }, data)
+      ...sberCrmDataCollection(newForm, data)
     }
   });
 
