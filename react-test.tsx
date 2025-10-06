@@ -1,112 +1,62 @@
-// useSyncedForm.ts
-import { useSyncExternalStore } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-import { formStore } from './formStore';
+// Фабрика для создания кастомных схем
+export const createNameSchema = (options?: {
+  required?: boolean;
+  fieldName?: string;
+  maxLength?: number;
+}) => {
+  const { 
+    required = true, 
+    fieldName = 'Поле',
+    maxLength = 100 
+  } = options || {};
 
-export const useSyncedForm = () => {
-  // Подписка на стор
-  const storeState = useSyncExternalStore(
-    formStore.subscribe,
-    formStore.getSnapshot
-  );
+  let schema = z.string()
+    .max(maxLength, `Слишком длинное значение`)
+    .regex(/^[А-Яа-яЁё\-\s]*$/, `${fieldName} может содержать только кириллические буквы, дефисы и пробелы`)
+    .refine((val) => !/(\-\-|\s\s)/.test(val), 
+      "Некорректное использование дефисов или пробелов");
 
-  // Инициализация react-hook-form с значениями из стора
-  const form = useForm({
-    defaultValues: storeState.formData
-  });
+  if (required) {
+    schema = schema
+      .min(1, `${fieldName} обязательно`)
+      .refine((val) => /^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val), 
+        `${fieldName} должно начинаться и заканчиваться буквой`);
+  } else {
+    schema = schema
+      .refine((val) => !val || (/^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val)), 
+        `${fieldName} должно начинаться и заканчиваться буквой`);
+  }
 
-  const { control, setValue, getValues } = form;
-
-  // Синхронизация изменений из формы в стор
-  const username = useWatch({ control, name: 'username' });
-  const email = useWatch({ control, name: 'email' });
-  const phone = useWatch({ control, name: 'phone' });
-
-  // Эффекты для синхронизации каждого поля
-  React.useEffect(() => {
-    if (username !== undefined) {
-      formStore.setFieldValue('username', username);
-    }
-  }, [username]);
-
-  React.useEffect(() => {
-    if (email !== undefined) {
-      formStore.setFieldValue('email', email);
-    }
-  }, [email]);
-
-  React.useEffect(() => {
-    if (phone !== undefined) {
-      formStore.setFieldValue('phone', phone);
-    }
-  }, [phone]);
-
-  // Функция для установки значения извне
-  const setFieldValue = (fieldName: string, value: any) => {
-    setValue(fieldName, value);
-    formStore.setFieldValue(fieldName, value);
-  };
-
-  return {
-    ...form,
-    storeState,
-    setFieldValue
-  };
+  return schema;
 };
 
 
-// useSyncedForm.ts
-import { useSyncExternalStore } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-import { formStore } from './formStore';
+import { z } from 'zod';
 
-export const useSyncedForm = () => {
-  // Подписка на стор
-  const storeState = useSyncExternalStore(
-    formStore.subscribe,
-    formStore.getSnapshot
-  );
+// Базовые схемы для отдельных полей
+export const lastNameSchema = z.string()
+  .min(1, "Фамилия обязательна")
+  .max(100, "Слишком длинная фамилия")
+  .regex(/^[А-Яа-яЁё\-\s]+$/, "Фамилия может содержать только кириллические буквы, дефисы и пробелы")
+  .refine((val) => /^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val), 
+    "Фамилия должна начинаться и заканчиваться буквой")
+  .refine((val) => !/(\-\-|\s\s)/.test(val), 
+    "Некорректное использование дефисов или пробелов");
 
-  // Инициализация react-hook-form с значениями из стора
-  const form = useForm({
-    defaultValues: storeState.formData
-  });
+export const firstNameSchema = z.string()
+  .min(1, "Имя обязательно")
+  .max(100, "Слишком длинное имя")
+  .regex(/^[А-Яа-яЁё\-\s]+$/, "Имя может содержать только кириллические буквы, дефисы и пробелы")
+  .refine((val) => /^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val), 
+    "Имя должно начинаться и заканчиваться буквой")
+  .refine((val) => !/(\-\-|\s\s)/.test(val), 
+    "Некорректное использование дефисов или пробелов");
 
-  const { control, setValue, getValues } = form;
-
-  // Синхронизация изменений из формы в стор
-  const username = useWatch({ control, name: 'username' });
-  const email = useWatch({ control, name: 'email' });
-  const phone = useWatch({ control, name: 'phone' });
-
-  // Эффекты для синхронизации каждого поля
-  React.useEffect(() => {
-    if (username !== undefined) {
-      formStore.setFieldValue('username', username);
-    }
-  }, [username]);
-
-  React.useEffect(() => {
-    if (email !== undefined) {
-      formStore.setFieldValue('email', email);
-    }
-  }, [email]);
-
-  React.useEffect(() => {
-    if (phone !== undefined) {
-      formStore.setFieldValue('phone', phone);
-    }
-  }, [phone]);
-
-  // Функция для установки значения извне
-  const setFieldValue = (fieldName: string, value: any) => {
-    setValue(fieldName, value);
-    formStore.setFieldValue(fieldName, value);
-  };
-
-  return {
-    ...form,
-    storeState,
-    setFieldValue
-  };
-};
+export const middleNameSchema = z.string()
+  .max(100, "Слишком длинное отчество")
+  .regex(/^[А-Яа-яЁё\-\s]*$/, "Отчество может содержать только кириллические буквы, дефисы и пробелы")
+  .optional()
+  .refine((val) => !val || (/^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val)), 
+    "Отчество должно начинаться и заканчиваться буквой")
+  .refine((val) => !val || !/(\-\-|\s\s)/.test(val), 
+    "Некорректное использование дефисов или пробелов");
