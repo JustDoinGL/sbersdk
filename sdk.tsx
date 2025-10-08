@@ -1,19 +1,30 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 
-const MPMWithAdacta = () => {
-  const iframeRef = useRef(null);
+const MPMWithAdacta: React.FC = () => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const refreshIframe = useCallback(() => {
+    if (iframeRef.current) {
+      // Правильный способ обновления iframe - сохраняем текущий src
+      const currentSrc = iframeRef.current.src;
+      iframeRef.current.src = '';
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.src = currentSrc;
+        }
+      }, 10);
+    }
+  }, []);
 
   useEffect(() => {
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       // Проверяем, что нажата F5 (код 116) или Cmd/Ctrl + R
       if (event.keyCode === 116 || (event.ctrlKey && event.keyCode === 82)) {
         event.preventDefault();
         event.stopPropagation();
         
         // Обновляем iframe
-        if (iframeRef.current) {
-          iframeRef.current.src = iframeRef.current.src;
-        }
+        refreshIframe();
         return false;
       }
     };
@@ -25,7 +36,7 @@ const MPMWithAdacta = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [refreshIframe]);
 
   return (
     <div>
