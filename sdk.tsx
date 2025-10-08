@@ -4,22 +4,18 @@ const MPMWithAdacta: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const refreshIframe = useCallback(() => {
-    if (iframeRef.current) {
-      // Правильный способ обновления iframe - сохраняем текущий src
-      const currentSrc = iframeRef.current.src;
-      iframeRef.current.src = '';
-      setTimeout(() => {
-        if (iframeRef.current) {
-          iframeRef.current.src = currentSrc;
-        }
-      }, 10);
+    if (iframeRef.current?.contentWindow?.location) {
+      iframeRef.current.contentWindow.location.reload();
     }
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Проверяем, что нажата F5 (код 116) или Cmd/Ctrl + R
-      if (event.keyCode === 116 || (event.ctrlKey && event.keyCode === 82)) {
+      // Современная проверка вместо keyCode
+      const isF5 = event.key === 'F5' || event.code === 'F5';
+      const isCtrlR = (event.ctrlKey || event.metaKey) && event.key === 'r';
+      
+      if (isF5 || isCtrlR) {
         event.preventDefault();
         event.stopPropagation();
         
