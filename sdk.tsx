@@ -1,18 +1,44 @@
-useEffect(() => {
-  if (current_client) {
-    // Преобразуем данные для совместимости типов
-    const transformedClient = {
-      ...current_client,
-      client_managers: current_client.client_managers?.map(manager => ({
-        ...manager,
-        user: {
-          ...manager.user,
-          patronymic: manager.user.patronymic || '' // преобразуем null в пустую строку
+import React, { useRef, useEffect } from 'react';
+
+const MPMWithAdacta = () => {
+  const iframeRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Проверяем, что нажата F5 (код 116) или Cmd/Ctrl + R
+      if (event.keyCode === 116 || (event.ctrlKey && event.keyCode === 82)) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Обновляем iframe
+        if (iframeRef.current) {
+          iframeRef.current.src = iframeRef.current.src;
         }
-      })) || []
+        return false;
+      }
     };
-    form.setValue("mrmClient", transformedClient as any);
-  } else {
-    form.setValue("mrmClient", undefined);
-  }
-}, [current_client]);
+
+    // Добавляем обработчик
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Убираем обработчик при размонтировании
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  return (
+    <div>
+      <h1>MPM Application</h1>
+      <iframe
+        ref={iframeRef}
+        src="https://your-adacta-url.com"
+        width="100%"
+        height="600px"
+        title="Adacta"
+      />
+    </div>
+  );
+};
+
+export default MPMWithAdacta;
