@@ -1,39 +1,18 @@
-import { useEffect, useRef } from 'react';
-
-interface UseScrollUpProps {
-  callback: () => void;
-  condition?: boolean;
-}
-
-const useScrollUp = ({ callback, condition = true }: UseScrollUpProps) => {
-  const lastScrollY = useRef(0);
-  const isScrollingUp = useRef(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      // Определяем направление скролла
-      if (currentScrollY < lastScrollY.current) {
-        isScrollingUp.current = true;
-      } else {
-        isScrollingUp.current = false;
-      }
-
-      // Если скролл вверх и условие выполнено - вызываем колбек
-      if (isScrollingUp.current && condition) {
-        callback();
-      }
-
-      lastScrollY.current = currentScrollY;
+useEffect(() => {
+  if (current_client) {
+    // Преобразуем данные для совместимости типов
+    const transformedClient = {
+      ...current_client,
+      client_managers: current_client.client_managers?.map(manager => ({
+        ...manager,
+        user: {
+          ...manager.user,
+          patronymic: manager.user.patronymic || '' // преобразуем null в пустую строку
+        }
+      })) || []
     };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [callback, condition]);
-};
-
-export default useScrollUp;
+    form.setValue("mrmClient", transformedClient as any);
+  } else {
+    form.setValue("mrmClient", undefined);
+  }
+}, [current_client]);
