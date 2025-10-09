@@ -1,15 +1,22 @@
-function handleNumberInput(inputString) {
-    // Убираем все нецифровые символы кроме минуса
-    const cleaned = inputString.replace(/[^\d-]/g, '');
-    
-    // Преобразуем в число
-    let number = parseInt(cleaned);
-    
-    // Если не число или NaN, возвращаем 0
-    if (isNaN(number)) {
-        return 0;
+import { useCallback, useRef } from "react";
+
+export function useIntersection(onIntersect: () => void) {
+  const unsubscribe = useRef<(() => void) | null>(null);
+
+  return useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((intersection) => {
+          if (intersection.isIntersecting) {
+            onIntersect();
+          }
+        });
+      });
+
+      observer.observe(el);
+      unsubscribe.current = () => observer.disconnect();
+    } else {
+      unsubscribe.current?.();
     }
-    
-    // Возвращаем абсолютное значение
-    return Math.abs(number);
+  }, [onIntersect]);
 }
