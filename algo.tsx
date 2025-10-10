@@ -1,15 +1,22 @@
-// Функция, которая вызывается при изменении видимости страницы
-function handleVisibilityChange() {
-  if (document.hidden) {
-    // Страница стала невидимой (пользователь ушел с вкладки)
-    console.log("Вкладка неактивна: останавливаем отправку запросов.");
-    // Здесь можно остановить таймеры или отменить запросы
-  } else {
-    // Страница снова видна (пользователь вернулся)
-    console.log("Вкладка активна: возобновляем работу.");
-    // Здесь можно снова запустить необходимые процессы
-  }
-}
+import { useCallback, useRef } from "react";
 
-// Добавляем слушатель события visibilitychange
-document.addEventListener("visibilitychange", handleVisibilityChange);
+export function useIntersection(onIntersect: () => void) {
+  const unsubscribe = useRef<(() => void) | null>(null);
+
+  return useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((intersection) => {
+          if (intersection.isIntersecting) {
+            onIntersect();
+          }
+        });
+      });
+
+      observer.observe(el);
+      unsubscribe.current = () => observer.disconnect();
+    } else {
+      unsubscribe.current?.();
+    }
+  }, [onIntersect]);
+}
