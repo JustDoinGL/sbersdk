@@ -9,12 +9,8 @@ export const smsCodeSchema = z.object({
     .min(0)
     .max(9)
   ).length(6, "Код должен содержать 6 цифр")
-}).pipe(
-  z.object({
-    digits: z.array(z.number())
-  }).transform((data) => ({
-    code: data.digits.join("")
-  }))
-);
+}).transform((data) => ({
+  code: data.digits.join("")
+}));
 
 export type SmsCodeSchema = z.infer<typeof smsCodeSchema>;
