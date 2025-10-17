@@ -1,39 +1,19 @@
+export const smsCodeSchema = z.object({
+  digits: z.array(
+    z.number({ 
+      required_error: "Все поля должны быть заполнены",
+      invalid_type_error: "Должна быть цифра"
+    }).min(0).max(9)
+  ).length(6, "Код должен содержать 6 цифр")
+}).refine(
+  (data) => {
+    const fullCode = data.digits.join('');
+    return /^\d{6}$/.test(fullCode);
+  },
+  {
+    message: "Код должен содержать ровно 6 цифр",
+    path: ["digits"]
+  }
+);
 
-useEffect(() => {
-  const handleBeforeUnload = (event) => {
-    // Добавляем задержку чтобы успеть увидеть запрос в Network
-    event.preventDefault();
-    
-    const data = {
-      event: 'tab_close',
-      timestamp: new Date().toISOString()
-    };
-
-    // Вариант 1: с console.log перед отправкой
-    console.log('🔄 Отправка запроса при закрытии...');
-    
-    fetch('/api/log-close', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-      keepalive: true
-    });
-
-    // Вариант 2: с отправкой в тестовый эндпоинт
-    fetch('https://httpbin.org/post', {
-      method: 'POST',
-      body: JSON.stringify(data),
-      keepalive: true
-    });
-
-    // Принудительная задержка для тестирования
-    const startTime = Date.now();
-    while (Date.now() - startTime < 100) {
-      // Ждем 100ms чтобы запрос успел отправиться
-    }
-  };
-
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  
-  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-}, []);
+export type SmsCodeSchema = z.infer<typeof smsCodeSchema>;
