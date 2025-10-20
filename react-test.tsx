@@ -1,62 +1,57 @@
-// Фабрика для создания кастомных схем
-export const createNameSchema = (options?: {
-  required?: boolean;
-  fieldName?: string;
-  maxLength?: number;
-}) => {
-  const { 
-    required = true, 
-    fieldName = 'Поле',
-    maxLength = 100 
-  } = options || {};
 
-  let schema = z.string()
-    .max(maxLength, `Слишком длинное значение`)
-    .regex(/^[А-Яа-яЁё\-\s]*$/, `${fieldName} может содержать только кириллические буквы, дефисы и пробелы`)
-    .refine((val) => !/(\-\-|\s\s)/.test(val), 
-      "Некорректное использование дефисов или пробелов");
+.sms-code-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
 
-  if (required) {
-    schema = schema
-      .min(1, `${fieldName} обязательно`)
-      .refine((val) => /^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val), 
-        `${fieldName} должно начинаться и заканчиваться буквой`);
-  } else {
-    schema = schema
-      .refine((val) => !val || (/^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val)), 
-        `${fieldName} должно начинаться и заканчиваться буквой`);
-  }
+.sms-inputs-container {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
 
-  return schema;
-};
+.sms-input {
+  width: 50px;
+  height: 60px;
+  text-align: center;
+  font-size: 24px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+}
 
+.sms-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
 
-import { z } from 'zod';
+.sms-input.error {
+  border-color: #dc3545;
+}
 
-// Базовые схемы для отдельных полей
-export const lastNameSchema = z.string()
-  .min(1, "Фамилия обязательна")
-  .max(100, "Слишком длинная фамилия")
-  .regex(/^[А-Яа-яЁё\-\s]+$/, "Фамилия может содержать только кириллические буквы, дефисы и пробелы")
-  .refine((val) => /^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val), 
-    "Фамилия должна начинаться и заканчиваться буквой")
-  .refine((val) => !/(\-\-|\s\s)/.test(val), 
-    "Некорректное использование дефисов или пробелов");
+.sms-input:not(:placeholder-shown) {
+  border-color: #28a745;
+}
 
-export const firstNameSchema = z.string()
-  .min(1, "Имя обязательно")
-  .max(100, "Слишком длинное имя")
-  .regex(/^[А-Яа-яЁё\-\s]+$/, "Имя может содержать только кириллические буквы, дефисы и пробелы")
-  .refine((val) => /^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val), 
-    "Имя должно начинаться и заканчиваться буквой")
-  .refine((val) => !/(\-\-|\s\s)/.test(val), 
-    "Некорректное использование дефисов или пробелов");
+.submit-button {
+  padding: 12px 24px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
 
-export const middleNameSchema = z.string()
-  .max(100, "Слишком длинное отчество")
-  .regex(/^[А-Яа-яЁё\-\s]*$/, "Отчество может содержать только кириллические буквы, дефисы и пробелы")
-  .optional()
-  .refine((val) => !val || (/^[А-Яа-яЁё]/.test(val) && /[А-Яа-яЁё]$/.test(val)), 
-    "Отчество должно начинаться и заканчиваться буквой")
-  .refine((val) => !val || !/(\-\-|\s\s)/.test(val), 
-    "Некорректное использование дефисов или пробелов");
+.submit-button:hover {
+  background-color: #0056b3;
+}
+
+.submit-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
