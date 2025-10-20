@@ -1,57 +1,229 @@
+import React, { useRef, useEffect, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
-.sms-code-form {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+// Схема валидации с Zod
+const smsCodeSchema = z.object({
+  code0: z.string().length(1, 'Введите цифру'),
+  code1: z.string().length(1, 'Введите цифру'),
+  code2: z.string().length(1, 'Введите цифру'),
+  code3: z.string().length(1, 'Введите цифру'),
+  code4: z.string().length(1, 'Введите цифру'),
+  code5: z.string().length(1, 'Введите цифру'),
+});
+
+type SmsCodeFormData = z.infer<typeof smsCodeSchema>;
+
+interface SmsCodeFormProps {
+  onCodeSubmit: (code: string) => void;
 }
 
-.sms-inputs-container {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
+export const SmsCodeForm: React.FC<SmsCodeFormProps> = ({ onCodeSubmit }) => {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    setFocus,
+    formState: { errors },
+    trigger,
+  } = useForm<SmsCodeFormData>({
+    resolver: zodResolver(smsCodeSchema),
+    mode: 'onChange',
+    defaultValues: {
+      code0: '', code1: '', code2: '', code3: '', code4: '', code5: ''
+    }
+  });
 
-.sms-input {
-  width: 50px;
-  height: 60px;
-  text-align: center;
-  font-size: 24px;
-  border: 2px solid #e1e5e9;
-  border-radius: 8px;
-  outline: none;
-  transition: all 0.2s ease;
-}
+  const watchedValues = watch();
 
-.sms-input:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
+  // Автоматическая отправка при заполнении всех полей
+  useEffect(() => {
+    const code = Object.values(watchedValues).join('');
+    if (code.length === 6 && /^\d+$/.test(code)) {
+      onCodeSubmit(code);
+    }
+  }, [watchedValues, onCodeSubmit]);
 
-.sms-input.error {
-  border-color: #dc3545;
-}
+  // Обработчик вставки текста
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text/plain').trim();
+    console.log('Pasted data:', pastedData); // Для отладки
+    
+    // Оставляем только цифры
+    const digits = pastedData.replace(/\D/g, '').split('').slice(0, 6);
+    console.log('Digits after processing:', digits); // Для отладки
+    
+    if (digits.length > 0) {
+      // Заполняем поля вставленными цифрами
+      digits.forEach((digit, index) => {
+        const fieldName = `code${index}` as keyof SmsCodeFormData;
+        setValue(fieldName, digit, { 
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true
+        });
+      });
+      
+      // Очищаем оставшиеся поля
+      for (let i = digits.length; i < 6; i++) {
+        const fieldName = `code${i}` as keyof SmsCodeFormData;
+        setValue(fieldName, '', { 
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true
+        });
+      }
+      
+      // Фокус на следующий после последнего заполненного поля
+      const nextFocusIndex = Math.min(digits.length, 5);
+      setTimeout(() => {
+        setFocus(`code${nextFocusIndex}` as keyof SmsCodeFormData);
+      }, 10);
+      
+      // Запускаем валидацию
+      setTimeout(() => {
+        trigger();
+      }, 20);
+    }
+  }, [setValue, setFocus, trigger]);
 
-.sms-input:not(:placeholder-shown) {
-  border-color: #28a745;
-}
+  // Обработчик изменения input
+  const handleInputChange = useCallback((
+    e: React.FormEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    const input = e.currentTarget;
+    let value = input.value;
 
-.submit-button {
-  padding: 12px 24px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
+    // Оставляем только цифры
+    value = value.replace(/\D/g, '');
 
-.submit-button:hover {
-  background-color: #0056b3;
-}
+    // Берем только последнюю цифру (если введено несколько)
+    if (value.length > 0) {
+      const digit = value.slice(-1);
+      
+      // Устанавливаем значение
+      setValue(`code${index}` as keyof SmsCodeFormData, digit, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Переходим к следующему полю
+      if (digit && index < 5) {
+        setTimeout(() => {
+          setFocus(`code${index + 1}` as keyof SmsCodeFormData);
+        }, 10);
+      }
+    } else {
+      // Если значение пустое, очищаем поле
+      setValue(`code${index}` as keyof SmsCodeFormData, '', {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
+    }
+  }, [setValue, setFocus]);
 
-.submit-button:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
-}
+  // Обработчик нажатия клавиш
+  const handleKeyDown = useCallback((
+    e: React.KeyboardEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    const input = e.currentTarget;
+    
+    if (e.key === 'Backspace') {
+      // Если поле пустое и нажат Backspace - переходим к предыдущему полю и очищаем его
+      if (!input.value && index > 0) {
+        setValue(`code${index - 1}` as keyof SmsCodeFormData, '', {
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true
+        });
+        setTimeout(() => {
+          setFocus(`code${index - 1}` as keyof SmsCodeFormData);
+        }, 10);
+      }
+      // Если в поле есть значение - очищаем его и остаемся в этом поле
+      else if (input.value) {
+        setValue(`code${index}` as keyof SmsCodeFormData, '', {
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true
+        });
+      }
+    }
+    // Обработка стрелок
+    else if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
+      setTimeout(() => {
+        setFocus(`code${index - 1}` as keyof SmsCodeFormData);
+      }, 10);
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      e.preventDefault();
+      setTimeout(() => {
+        setFocus(`code${index + 1}` as keyof SmsCodeFormData);
+      }, 10);
+    }
+    // Блокировка букв и других символов
+    else if (e.key.length === 1 && !/\d/.test(e.key)) {
+      e.preventDefault();
+    }
+  }, [setValue, setFocus]);
+
+  // Обработчик фокуса - выделяем текст для перезаписи
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.select();
+  }, []);
+
+  const onSubmit = (data: SmsCodeFormData) => {
+    const code = Object.values(data).join('');
+    onCodeSubmit(code);
+  };
+
+  // Регистрируем поля без использования register в ref
+  const registerField = useCallback((index: number) => {
+    const fieldName = `code${index}` as keyof SmsCodeFormData;
+    const { ref, ...rest } = register(fieldName);
+    
+    return {
+      ...rest,
+      ref: (el: HTMLInputElement | null) => {
+        inputRefs.current[index] = el;
+        ref(el);
+      }
+    };
+  }, [register]);
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="sms-code-form">
+      <div className="sms-inputs-container">
+        {[0, 1, 2, 3, 4, 5].map((index) => (
+          <input
+            key={index}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={1}
+            className={`sms-input ${errors[`code${index}` as keyof SmsCodeFormData] ? 'error' : ''}`}
+            {...registerField(index)}
+            onPaste={handlePaste}
+            onInput={(e) => handleInputChange(e, index)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
+            onFocus={handleFocus}
+            autoComplete="one-time-code"
+          />
+        ))}
+      </div>
+      
+      <button type="submit" className="submit-button">
+        Подтвердить
+      </button>
+    </form>
+  );
+};
