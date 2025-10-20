@@ -1,103 +1,57 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
-export const useSmsCode = (length: number = 6) => {
-  const [codes, setCodes] = useState<string[]>(Array(length).fill(''));
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+export const SmsCodeForm = ({ onCodeSubmit }) => {
+  const refs = useRef([]);
+  const [vals, setVals] = useState(Array(6).fill(''));
 
-  const updateCode = useCallback((index: number, value: string) => {
-    setCodes(prev => {
-      const newCodes = [...prev];
-      newCodes[index] = value;
-      return newCodes;
-    });
-  }, []);
+  useEffect(() => {
+    const code = vals.join('');
+    if (code.length === 6) onCodeSubmit(code);
+  }, [vals]);
 
-  const clearCodes = useCallback(() => {
-    setCodes(Array(length).fill(''));
-  }, [length]);
-
-  const getFullCode = useCallback(() => {
-    return codes.join('');
-  }, [codes]);
-
-  return {
-    codes,
-    inputRefs,
-    updateCode,
-    clearCodes,
-    getFullCode
-  };
-};
-
-export const SmsCodeForm: React.FC<SmsCodeFormProps> = ({ onCodeSubmit }) => {
-  const { codes, inputRefs, updateCode } = useSmsCode(6);
-
-  const handleInput = useCallback((index: number, e: React.FormEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    let value = input.value;
-    
-    // Очищаем и берем последнюю цифру
-    value = value.replace(/\D/g, '');
-    if (value.length > 0) {
-      value = value.slice(-1);
-    }
-    
-    // Принудительно обновляем DOM
-    input.value = value;
-    
-    // Обновляем состояние
-    updateCode(index, value);
-    
-    // Авто-отправка при полном заполнении
-    const fullCode = [...codes.slice(0, index), value, ...codes.slice(index + 1)].join('');
-    if (fullCode.length === 6 && /^\d+$/.test(fullCode)) {
-      onCodeSubmit(fullCode);
-    }
-    
-    // Авто-фокус на следующее поле
-    if (value && index < 5) {
-      setTimeout(() => {
-        inputRefs.current[index + 1]?.focus();
-      }, 10);
-    }
-  }, [codes, updateCode, onCodeSubmit]);
-
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+  const paste = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text/plain');
-    const digits = pastedData.replace(/\D/g, '').split('').slice(0, 6);
-    
-    digits.forEach((digit, index) => {
-      if (inputRefs.current[index]) {
-        inputRefs.current[index]!.value = digit;
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6).split('');
+    const newVals = [...Array(6).fill('')];
+    digits.forEach((d, i) => { newVals[i] = d; refs.current[i] && (refs.current[i].value = d); });
+    setVals(newVals);
+    setTimeout(() => refs.current[Math.min(digits.length, 5)]?.focus(), 0);
+  };
+
+  const input = (index, e) => {
+    const digit = e.currentTarget.value.replace(/\D/g, '').slice(-1);
+    const newVals = [...vals];
+    newVals[index] = digit;
+    e.currentTarget.value = digit;
+    setVals(newVals);
+    digit && index < 5 && setTimeout(() => refs.current[index + 1]?.focus(), 0);
+  };
+
+  const keydown = (index, e) => {
+    if (e.key === 'Backspace') {
+      if (!vals[index] && index > 0) {
+        const newVals = [...vals];
+        newVals[index - 1] = '';
+        refs.current[index - 1] && (refs.current[index - 1].value = '');
+        setVals(newVals);
+        setTimeout(() => refs.current[index - 1]?.focus(), 0);
       }
-      updateCode(index, digit);
-    });
-    
-    const fullCode = digits.join('');
-    if (fullCode.length === 6) {
-      onCodeSubmit(fullCode);
     }
-    
-    const nextIndex = Math.min(digits.length, 5);
-    setTimeout(() => {
-      inputRefs.current[nextIndex]?.focus();
-    }, 10);
-  }, [updateCode, onCodeSubmit]);
+    e.key.length === 1 && !/\d/.test(e.key) && e.preventDefault();
+  };
 
   return (
     <div className="sms-inputs-container">
-      {codes.map((code, index) => (
+      {vals.map((_, i) => (
         <input
-          key={index}
-          ref={el => inputRefs.current[index] = el}
+          key={i}
+          ref={el => refs.current[i] = el}
           type="text"
           inputMode="numeric"
-          value={code}
-          onInput={(e) => handleInput(index, e)}
-          onPaste={handlePaste}
-          onFocus={(e) => e.target.select()}
-          className="sms-input"
+          onPaste={paste}
+          onInput={(e) => input(i, e)}
+          onKeyDown={(e) => keydown(i, e)}
+          onFocus={e => e.target.select()}
           autoComplete="one-time-code"
         />
       ))}
