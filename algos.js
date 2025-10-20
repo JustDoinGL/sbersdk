@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 
 export const SmsCodeForm = ({ onCodeSubmit }) => {
@@ -21,23 +22,84 @@ export const SmsCodeForm = ({ onCodeSubmit }) => {
   const input = (index, e) => {
     const digit = e.currentTarget.value.replace(/\D/g, '').slice(-1);
     const newVals = [...vals];
-    newVals[index] = digit;
-    e.currentTarget.value = digit;
-    setVals(newVals);
-    digit && index < 5 && setTimeout(() => refs.current[index + 1]?.focus(), 0);
+    
+    if (digit) {
+      newVals[index] = digit;
+      e.currentTarget.value = digit;
+      setVals(newVals);
+      // Переход вперед если ввели цифру
+      if (index < 5) {
+        setTimeout(() => refs.current[index + 1]?.focus(), 0);
+      }
+    } else {
+      // Если очистили поле
+      newVals[index] = '';
+      setVals(newVals);
+    }
   };
 
   const keydown = (index, e) => {
+    // Навигация стрелками
+    if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
+      setTimeout(() => refs.current[index - 1]?.focus(), 0);
+      return;
+    }
+    
+    if (e.key === 'ArrowRight' && index < 5) {
+      e.preventDefault();
+      setTimeout(() => refs.current[index + 1]?.focus(), 0);
+      return;
+    }
+
+    // Backspace
     if (e.key === 'Backspace') {
       if (!vals[index] && index > 0) {
+        // Если поле пустое - очищаем предыдущее и переходим к нему
         const newVals = [...vals];
         newVals[index - 1] = '';
         refs.current[index - 1] && (refs.current[index - 1].value = '');
         setVals(newVals);
-        setTimeout(() => refs.current[index - 1]?.focus(), 0);
+        setTimeout(() => {
+          refs.current[index - 1]?.focus();
+          refs.current[index - 1]?.select();
+        }, 0);
+      } else if (vals[index]) {
+        // Если в поле есть значение - очищаем его но остаемся в нем
+        const newVals = [...vals];
+        newVals[index] = '';
+        e.currentTarget.value = '';
+        setVals(newVals);
       }
+      return;
     }
-    e.key.length === 1 && !/\d/.test(e.key) && e.preventDefault();
+
+    // Если поле уже заполнено и пользователь вводит новую цифру - заменяем
+    if (vals[index] && /\d/.test(e.key)) {
+      const newVals = [...vals];
+      newVals[index] = e.key;
+      e.currentTarget.value = e.key;
+      setVals(newVals);
+      
+      // Автопереход к следующему полю после замены
+      if (index < 5) {
+        setTimeout(() => refs.current[index + 1]?.focus(), 0);
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // Блокировка не-цифр
+    if (e.key.length === 1 && !/\d/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  // Обработчик клика - если поле заполнено, выделяем текст для замены
+  const handleClick = (index, e) => {
+    if (vals[index]) {
+      e.target.select();
+    }
   };
 
   return (
@@ -48,10 +110,13 @@ export const SmsCodeForm = ({ onCodeSubmit }) => {
           ref={el => refs.current[i] = el}
           type="text"
           inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={1}
           onPaste={paste}
           onInput={(e) => input(i, e)}
           onKeyDown={(e) => keydown(i, e)}
           onFocus={e => e.target.select()}
+          onClick={(e) => handleClick(i, e)}
           autoComplete="one-time-code"
         />
       ))}
