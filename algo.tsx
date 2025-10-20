@@ -1,306 +1,313 @@
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, KeyboardEvent, ClipboardEvent, FormEvent } from 'react';
 
-// Схема валидации - каждый элемент как number, затем преобразуем в строку
-const smsCodeSchema = z.object({
-  digits: z.array(
-    z.number({ 
-      required_error: "Все поля должны быть заполнены",
-      invalid_type_error: "Должна быть цифра"
-    }).min(0).max(9)
-  ).length(6, "Код должен содержать 6 цифр")
-}).transform((data) => ({
-  ...data,
-  fullCode: data.digits.join('')
-})).refine(
-  (data) => /^\d{6}$/.test(data.fullCode),
-  {
-    message: "Код должен содержать ровно 6 цифр",
-    path: ["digits"]
-  }
-);
+interface SmsCodeInputProps {
+  onCodeComplete: (code: string) => void;
+}
 
-type SmsCodeFormValues = {
-  digits: number[];
-  fullCode?: string;
-};
-
-const SmsCodeInputWithReactHookForm = () => {
+export const SmsCodeInput: React.FC<SmsCodeInputProps> = ({ onCodeComplete }) => {
+  // Рефы для доступа к DOM элементам инпутов
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   
-  const {
-    control,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setValue,
-    setError,
-    clearErrors,
-    trigger,
-    watch
-  } = useForm<SmsCodeFormValues>({
-    resolver: zodResolver(smsCodeSchema),
-    defaultValues: {
-      digits: ['', '', '', '', '', ''].map(() => NaN), // Начальные значения как NaN
-    },
-    mode: 'onChange'
-  });
+  // Состояние для хранения значений всех полей
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  
+  // Состояние для ошибок валидации
+  const [errors, setErrors] = useState<boolean[]>(Array(6).fill(false));
 
-  const { fields } = useFieldArray({
-    control,
-    name: 'digits'
-  });
+  // Проверка валидации всех полей
+  const validateAllFields = (values: string[]): boolean[] => {
+    return values.map(value => value.length !== 1);
+  };
 
-  const digits = watch('digits');
-
-  // Фокусируем первый инпут при монтировании
+  // Автоматическая отправка когда все 6 полей заполнены цифрами
   useEffect(() => {
-    if (inputRefs.current[0]) {
-      inputRefs.current[0].focus();
+    const isComplete = digits.every(digit => digit.length === 1);
+    if (isComplete) {
+      const smsCode = digits.join('');
+      onCodeComplete(smsCode);
     }
-  }, []);
+    
+    // Обновляем состояния ошибок
+    const newErrors = validateAllFields(digits);
+    setErrors(newErrors);
+  }, [digits, onCodeComplete]);
 
-  const handleDigitChange = async (index: number, value: string) => {
-    // Разрешаем только цифры 0-9
-    if (value && !/^\d$/.test(value)) {
-      return;
+  // Обновление значения в конкретном поле
+  const updateDigit = (index: number, value: string) => {
+    const newDigits = [...digits];
+    newDigits[index] = value;
+    setDigits(newDigits);
+  };
+
+  // Обработчик вставки текста из буфера обмена
+  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    const pastedText = event.clipboardData.getData('text/plain').trim();
+    
+    // Оставляем только цифры и берем первые 6
+    const pastedDigits = pastedText.replace(/\D/g, '').split('').slice(0, 6);
+    
+    if (pastedDigits.length > 0) {
+      const newDigits = [...digits];
+      
+      // Заполняем поля цифрами из буфера обмена
+      pastedDigits.forEach((digit, index) => {
+        newDigits[index] = digit;
+        // Обновляем DOM
+        if (inputRefs.current[index]) {
+          inputRefs.current[index]!.value = digit;
+        }
+      });
+      
+      // Очищаем оставшиеся поля если вставлено меньше 6 цифр
+      for (let i = pastedDigits.length; i < 6; i++) {
+        newDigits[i] = '';
+        if (inputRefs.current[i]) {
+          inputRefs.current[i]!.value = '';
+        }
+      }
+      
+      setDigits(newDigits);
+      
+      // Ставим фокус на поле после последней вставленной цифры
+      const nextFocusIndex = Math.min(pastedDigits.length, 5);
+      setTimeout(() => {
+        inputRefs.current[nextFocusIndex]?.focus();
+      }, 10);
     }
+  };
 
-    const numericValue = value === '' ? NaN : parseInt(value, 10);
-    
-    // Устанавливаем значение
-    setValue(`digits.${index}`, numericValue);
-    
-    // Очищаем ошибки при изменении
-    clearErrors('digits');
+  // Обработчик ввода цифры в поле
+  const handleDigitInput = (index: number, event: FormEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    let inputValue = input.value;
 
-    // Автоматически переходим к следующему инпуту при вводе цифры
-    if (value && index < 5) {
+    // Оставляем только цифры
+    inputValue = inputValue.replace(/\D/g, '');
+
+    if (inputValue.length > 0) {
+      // Берем последнюю введенную цифру
+      const digit = inputValue.slice(-1);
+      
+      // Обновляем значение в состоянии
+      updateDigit(index, digit);
+      
+      // Принудительно обновляем значение в DOM
+      input.value = digit;
+      
+      // Переходим к следующему полю если ввели цифру и это не последнее поле
+      if (digit && index < 5) {
+        setTimeout(() => {
+          inputRefs.current[index + 1]?.focus();
+        }, 10);
+      }
+    } else {
+      // Если поле очистили
+      updateDigit(index, '');
+    }
+  };
+
+  // Обработчик нажатия клавиш на клавиатуре
+  const handleKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    
+    // Обработка клавиши Backspace
+    if (event.key === 'Backspace') {
+      // Если поле пустое - переходим к предыдущему полю и очищаем его
+      if (!input.value && index > 0) {
+        updateDigit(index - 1, '');
+        if (inputRefs.current[index - 1]) {
+          inputRefs.current[index - 1]!.value = '';
+        }
+        setTimeout(() => {
+          inputRefs.current[index - 1]?.focus();
+        }, 10);
+      }
+      // Если в поле есть значение - очищаем его
+      else if (input.value) {
+        updateDigit(index, '');
+      }
+      event.preventDefault();
+    }
+    
+    // Навигация стрелками влево/вправо
+    else if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      setTimeout(() => {
+        inputRefs.current[index - 1]?.focus();
+      }, 10);
+    } 
+    else if (event.key === 'ArrowRight' && index < 5) {
+      event.preventDefault();
       setTimeout(() => {
         inputRefs.current[index + 1]?.focus();
       }, 10);
     }
-
-    // Триггерим валидацию после изменения
-    await trigger('digits');
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Обработка Backspace
-    if (e.key === 'Backspace') {
-      if (isNaN(digits[index]) && index > 0) {
-        // Если текущий инпут пустой и нажали Backspace - переходим к предыдущему
+    
+    // Замена цифры если поле уже заполнено
+    else if (digits[index] && /\d/.test(event.key)) {
+      updateDigit(index, event.key);
+      input.value = event.key;
+      
+      // Переходим к следующему полю после замены
+      if (index < 5) {
         setTimeout(() => {
-          inputRefs.current[index - 1]?.focus();
+          inputRefs.current[index + 1]?.focus();
         }, 10);
-      } else if (!isNaN(digits[index])) {
-        // Если есть значение - очищаем его
-        setValue(`digits.${index}`, NaN);
-        clearErrors('digits');
       }
+      event.preventDefault();
     }
-
-    // Обработка стрелок
-    if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-    if (e.key === 'ArrowRight' && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    // Обработка Delete
-    if (e.key === 'Delete') {
-      setValue(`digits.${index}`, NaN);
-      clearErrors('digits');
+    
+    // Блокировка ввода не-цифр
+    else if (event.key.length === 1 && !/\d/.test(event.key)) {
+      event.preventDefault();
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent, index: number) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text');
-    
-    if (/^\d+$/.test(pastedData)) {
-      const digitsArray = pastedData.split('').slice(0, 6);
-      
-      // Заполняем все инпуты скопированными цифрами
-      digitsArray.forEach((digit, digitIndex) => {
-        if (digitIndex < 6) {
-          setValue(`digits.${digitIndex}`, parseInt(digit, 10));
-        }
-      });
-      
-      // Фокусируем последний заполненный инпут
-      const lastFilledIndex = Math.min(digitsArray.length - 1, 5);
-      setTimeout(() => {
-        inputRefs.current[lastFilledIndex]?.focus();
-      }, 10);
-      
-      clearErrors('digits');
-      trigger('digits');
+  // Выделение текста при фокусе для удобства замены
+  const handleFocus = (event: FormEvent<HTMLInputElement>) => {
+    event.currentTarget.select();
+  };
+
+  // Обработчик клика для выделения текста в заполненном поле
+  const handleClick = (index: number, event: React.MouseEvent<HTMLInputElement>) => {
+    if (digits[index]) {
+      event.currentTarget.select();
     }
   };
-
-  const onSubmit = async (data: SmsCodeFormValues) => {
-    console.log('Полные данные формы:', data);
-    
-    try {
-      // Валидируем полный код через схему
-      const validatedData = smsCodeSchema.parse({
-        digits: data.digits
-      });
-      
-      console.log('Валидированный SMS код:', validatedData.fullCode);
-      
-      // Здесь логика отправки кода на сервер
-      // await api.verifySmsCode(validatedData.fullCode);
-      
-      // Имитация успешной отправки
-      alert(`Код ${validatedData.fullCode} успешно отправлен!`);
-      
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        console.error('Ошибка валидации:', error.errors);
-        setError('root', { 
-          message: 'Неверный код. Проверьте правильность и попробуйте ещё раз' 
-        });
-        
-        // Находим первый некорректный инпут и фокусируем его
-        const firstInvalidIndex = data.digits.findIndex(digit => isNaN(digit));
-        if (firstInvalidIndex !== -1 && inputRefs.current[firstInvalidIndex]) {
-          inputRefs.current[firstInvalidIndex]?.focus();
-        }
-      }
-    }
-  };
-
-  const handleResendCode = () => {
-    // Сбрасываем форму
-    setValue('digits', [NaN, NaN, NaN, NaN, NaN, NaN]);
-    clearErrors();
-    
-    // Фокусируем первый инпут
-    setTimeout(() => {
-      if (inputRefs.current[0]) {
-        inputRefs.current[0].focus();
-      }
-    }, 10);
-    
-    console.log('Запрос на повторную отправку кода');
-  };
-
-  const allDigitsFilled = digits?.every(digit => !isNaN(digit));
 
   return (
-    <div className="flex flex-col items-center space-y-6 p-6 max-w-sm mx-auto">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold mb-2">Введите СМС-код</h2>
-        <p className="text-gray-600 mb-1">Отправили на +7 913 000-00-00</p>
+    <div className="sms-code-container">
+      <div className="sms-inputs-grid">
+        {digits.map((digit, index) => (
+          <input
+            key={index}
+            ref={element => inputRefs.current[index] = element}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={1}
+            className={`sms-code-input ${errors[index] ? 'input-error' : ''} ${digit ? 'input-filled' : ''}`}
+            onPaste={handlePaste}
+            onInput={(event) => handleDigitInput(index, event)}
+            onKeyDown={(event) => handleKeyDown(index, event)}
+            onFocus={handleFocus}
+            onClick={(event) => handleClick(index, event)}
+            autoComplete="one-time-code"
+            aria-label={`Цифра ${index + 1} из 6 для SMS подтверждения`}
+          />
+        ))}
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="w-full">
-        {/* Контейнер для инпутов */}
-        <div className="flex space-x-2 mb-4 justify-center">
-          {fields.map((field, index) => (
-            <Controller
-              key={field.id}
-              control={control}
-              name={`digits.${index}`}
-              render={({ field: controllerField }) => (
-                <input
-                  ref={(el) => {
-                    inputRefs.current[index] = el;
-                  }}
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={1}
-                  value={isNaN(controllerField.value) ? '' : controllerField.value.toString()}
-                  onChange={(e) => handleDigitChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  onPaste={(e) => handlePaste(e, index)}
-                  className={`
-                    w-12 h-12 text-center text-xl font-semibold border-2 rounded-lg
-                    focus:outline-none focus:border-blue-500 transition-colors
-                    ${errors.digits ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                    ${!isNaN(controllerField.value) ? 'bg-blue-50 border-blue-300' : ''}
-                    ${errors.digits && isNaN(controllerField.value) ? 'border-red-500 shake' : ''}
-                  `}
-                />
-              )}
-            />
-          ))}
-        </div>
-
-        {/* Сообщения об ошибках */}
-        {errors.digits && (
-          <div className="text-red-500 text-center text-sm mb-2">
-            {errors.digits.message || "Все поля должны быть заполнены цифрами"}
-          </div>
-        )}
-
-        {errors.root && (
-          <div className="text-red-500 text-center text-sm mb-2">
-            {errors.root.message}
-          </div>
-        )}
-
-        {/* Информационное сообщение */}
-        <div className="text-xs text-gray-500 text-center mb-4">
-          Цифры из смс – простая электронная подпись.
-          <br />
-          После ввода Акт считается подписанным
-        </div>
-
-        {/* Кнопки действий */}
-        <div className="flex flex-col space-y-3 w-full">
-          <button
-            type="submit"
-            disabled={isSubmitting || !allDigitsFilled}
-            className={`
-              w-full py-3 px-4 rounded-lg font-medium transition-colors
-              ${isSubmitting || !allDigitsFilled
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-              }
-            `}
-          >
-            {isSubmitting ? 'Проверка...' : 'Подписать акт'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleResendCode}
-            disabled={isSubmitting}
-            className="text-blue-500 hover:text-blue-700 disabled:text-gray-400 transition-colors"
-          >
-            Отправить новый через 46 сек.
-          </button>
-
-          <button
-            type="button"
-            className="text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            Отменить
-          </button>
-
-          <button
-            type="button"
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Send your admins a reminder
-          </button>
-        </div>
-      </form>
-
-      {/* Отладочная информация */}
-      <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
-        <div>Текущие цифры: {digits?.map(d => isNaN(d) ? '_' : d).join(' ')}</div>
-        <div>Полный код: {digits?.every(d => !isNaN(d)) ? digits.join('') : 'Не заполнен'}</div>
-        <div>Все поля заполнены: {allDigitsFilled ? 'Да' : 'Нет'}</div>
-      </div>
+      <style jsx>{`
+        .sms-code-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+          padding: 16px;
+        }
+        
+        .sms-inputs-grid {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+          align-items: center;
+        }
+        
+        .sms-code-input {
+          width: 54px;
+          height: 62px;
+          border: 2px solid #d1d5db;
+          border-radius: 12px;
+          background: #ffffff;
+          text-align: center;
+          font-size: 24px;
+          font-weight: 600;
+          color: #111827;
+          transition: all 0.2s ease-in-out;
+          outline: none;
+          font-family: monospace;
+        }
+        
+        .sms-code-input:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          transform: translateY(-2px);
+        }
+        
+        .sms-code-input.input-filled {
+          border-color: #10b981;
+          background-color: #f0fdf4;
+        }
+        
+        .sms-code-input.input-error {
+          border-color: #ef4444;
+          background-color: #fef2f2;
+        }
+        
+        .sms-code-input:hover {
+          border-color: #9ca3af;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Анимация пульсации когда все поля заполнены */
+        .sms-inputs-grid:has(.sms-code-input.input-filled:nth-child(6)) .sms-code-input {
+          animation: pulse-gentle 0.6s ease-in-out;
+        }
+        
+        @keyframes pulse-gentle {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        
+        /* Адаптивность для мобильных устройств */
+        @media (max-width: 480px) {
+          .sms-inputs-grid {
+            gap: 8px;
+          }
+          
+          .sms-code-input {
+            width: 46px;
+            height: 54px;
+            font-size: 20px;
+            border-radius: 10px;
+          }
+        }
+        
+        @media (max-width: 360px) {
+          .sms-inputs-grid {
+            gap: 6px;
+          }
+          
+          .sms-code-input {
+            width: 42px;
+            height: 50px;
+            font-size: 18px;
+            border-radius: 8px;
+          }
+        }
+        
+        /* Поддержка темной темы */
+        @media (prefers-color-scheme: dark) {
+          .sms-code-input {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f9fafb;
+          }
+          
+          .sms-code-input.input-filled {
+            background-color: #064e3b;
+            border-color: #047857;
+          }
+          
+          .sms-code-input.input-error {
+            background-color: #7f1d1d;
+            border-color: #dc2626;
+          }
+        }
+      `}</style>
     </div>
   );
 };
-
-export default SmsCodeInputWithReactHookForm;
