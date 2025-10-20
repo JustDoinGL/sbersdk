@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 
 export const SmsCodeForm = ({ onCodeSubmit }) => {
@@ -7,26 +6,48 @@ export const SmsCodeForm = ({ onCodeSubmit }) => {
 
   useEffect(() => {
     const code = vals.join('');
-    if (code.length === 6) onCodeSubmit(code);
-  }, [vals]);
+    if (code.length === 6 && /^\d{6}$/.test(code)) {
+      onCodeSubmit(code);
+    }
+  }, [vals, onCodeSubmit]);
 
   const paste = (e) => {
     e.preventDefault();
-    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6).split('');
-    const newVals = [...Array(6).fill('')];
-    digits.forEach((d, i) => { newVals[i] = d; refs.current[i] && (refs.current[i].value = d); });
+    const pastedText = e.clipboardData.getData('text');
+    const digits = pastedText.replace(/\D/g, '').slice(0, 6).split('');
+    
+    const newVals = Array(6).fill('');
+    digits.forEach((digit, i) => {
+      newVals[i] = digit;
+    });
+    
+    // Обновляем DOM
+    newVals.forEach((val, i) => {
+      if (refs.current[i]) {
+        refs.current[i].value = val;
+      }
+    });
+    
+    // Обновляем состояние
     setVals(newVals);
-    setTimeout(() => refs.current[Math.min(digits.length, 5)]?.focus(), 0);
+    
+    // Фокус на следующее поле после вставки
+    const nextFocusIndex = Math.min(digits.length, 5);
+    setTimeout(() => refs.current[nextFocusIndex]?.focus(), 0);
   };
 
   const input = (index, e) => {
-    const digit = e.currentTarget.value.replace(/\D/g, '').slice(-1);
+    const input = e.currentTarget;
+    const value = input.value;
+    const digit = value.replace(/\D/g, '').slice(-1);
+    
     const newVals = [...vals];
     
     if (digit) {
       newVals[index] = digit;
-      e.currentTarget.value = digit;
+      input.value = digit; // Принудительно устанавливаем значение
       setVals(newVals);
+      
       // Переход вперед если ввели цифру
       if (index < 5) {
         setTimeout(() => refs.current[index + 1]?.focus(), 0);
@@ -58,11 +79,12 @@ export const SmsCodeForm = ({ onCodeSubmit }) => {
         // Если поле пустое - очищаем предыдущее и переходим к нему
         const newVals = [...vals];
         newVals[index - 1] = '';
-        refs.current[index - 1] && (refs.current[index - 1].value = '');
+        if (refs.current[index - 1]) {
+          refs.current[index - 1].value = '';
+        }
         setVals(newVals);
         setTimeout(() => {
           refs.current[index - 1]?.focus();
-          refs.current[index - 1]?.select();
         }, 0);
       } else if (vals[index]) {
         // Если в поле есть значение - очищаем его но остаемся в нем
@@ -71,6 +93,7 @@ export const SmsCodeForm = ({ onCodeSubmit }) => {
         e.currentTarget.value = '';
         setVals(newVals);
       }
+      e.preventDefault(); // Предотвращаем стандартное поведение Backspace
       return;
     }
 
