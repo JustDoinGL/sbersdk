@@ -1,37 +1,34 @@
-// Базовые схемы
-const restrictedAreaBase = z.boolean();
-const restrictedAreaObject = z.object({ 
-  value: z.boolean(), 
-  label: z.string() 
-});
+// Универсальная схема с двусторонним преобразованием
+export const SalesPointFormSchema = {
+  // Для парсинга входящих данных (boolean → объект)
+  parse: (data: SalesPointDto) => 
+    z.object({
+      restricted_area: z.boolean().transform((bool) => 
+        restrictedAreaTypesOptions.find(opt => opt.value === bool)!
+      ),
+      activity_type: z.number().optional(),
+    }).parse(data),
 
-// Схема для формы (вход: boolean, выход: объект)
-export const formInputSchema = z.object({
-  restricted_area: restrictedAreaBase.transform((bool) => 
-    restrictedAreaTypesOptions.find(opt => opt.value === bool)!
-  ),
-  activity_type: z.number().optional(),
-});
+  // Для подготовки к отправке (объект → boolean)  
+  serialize: (data: SalesPointFormSchema) =>
+    z.object({
+      restricted_area: z.object({ 
+        value: z.boolean(), 
+        label: z.string() 
+      }).transform((obj) => obj.value),
+      activity_type: z.number().optional(),
+    }).parse(data),
 
-// Схема для API (вход: объект, выход: boolean)
-export const formOutputSchema = z.object({
-  restricted_area: restrictedAreaObject.transform((obj) => obj.value),
-  activity_type: z.number().optional(),
-});
-
-// Комбинированная схема для типов
-export const SalesPointFormSchema = z.object({
-  restricted_area: restrictedAreaObject,
-  activity_type: z.number().optional(),
-});
-
-export type SalesPointFormSchema = z.infer<typeof SalesPointFormSchema>;
-
-// Мапперы
-export const mapperSalesPointForm = (salesPoint: SalesPointDto) => {
-  return formInputSchema.parse(salesPoint);
+  // Для валидации формы
+  schema: z.object({
+    restricted_area: z.object({ 
+      value: z.boolean(), 
+      label: z.string() 
+    }),
+    activity_type: z.number().optional(),
+  })
 };
 
-export const mapperSalesPointToApi = (formData: SalesPointFormSchema) => {
-  return formOutputSchema.parse(formData);
-};
+// Использование:
+const formData = SalesPointFormSchema.parse(apiData); // boolean → объект
+const apiData = SalesPointFormSchema.serialize(formData); // объект → boolean
