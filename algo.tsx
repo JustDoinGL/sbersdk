@@ -1,55 +1,37 @@
-import { baseSchema } from "@/5_shared/validators/baseschema";
-import { z } from "zod";
-import { SalesPointDto } from "@/5_shared/api";
+// Базовые схемы
+const restrictedAreaBase = z.boolean();
+const restrictedAreaObject = z.object({ 
+  value: z.boolean(), 
+  label: z.string() 
+});
 
-export const restrictedAreaTypesOptions = [
-  {
-    label: "Да",
-    value: true,
-  },
-  {
-    label: "Нет",
-    value: false,
-  },
-];
-
-// 1. Схема для входящих данных (преобразование boolean в объект)
-export const inputSalesPointSchema = z.object({
-  restricted_area: z.boolean(),
+// Схема для формы (вход: boolean, выход: объект)
+export const formInputSchema = z.object({
+  restricted_area: restrictedAreaBase.transform((bool) => 
+    restrictedAreaTypesOptions.find(opt => opt.value === bool)!
+  ),
   activity_type: z.number().optional(),
 });
 
-// 2. Схема для формы (объект с value/label)
+// Схема для API (вход: объект, выход: boolean)
+export const formOutputSchema = z.object({
+  restricted_area: restrictedAreaObject.transform((obj) => obj.value),
+  activity_type: z.number().optional(),
+});
+
+// Комбинированная схема для типов
 export const SalesPointFormSchema = z.object({
-  restricted_area: z.object({ 
-    value: z.boolean(), 
-    label: z.string() 
-  }),
+  restricted_area: restrictedAreaObject,
   activity_type: z.number().optional(),
 });
 
 export type SalesPointFormSchema = z.infer<typeof SalesPointFormSchema>;
 
-// 3. Схема для отправки на бекенд (обратно в boolean)
-export const apiSalesPointSchema = z.object({
-  restricted_area: z.boolean(),
-  activity_type: z.number().optional(),
-});
-
-// Маппер для преобразования входящих данных в форму
+// Мапперы
 export const mapperSalesPointForm = (salesPoint: SalesPointDto) => {
-  return {
-    restricted_area: restrictedAreaTypesOptions.find(
-      (el) => el.value === salesPoint.restricted_area,
-    ),
-    activity_type: salesPoint.activity_type,
-  };
+  return formInputSchema.parse(salesPoint);
 };
 
-// Маппер для преобразования формы в данные для API
 export const mapperSalesPointToApi = (formData: SalesPointFormSchema) => {
-  return {
-    restricted_area: formData.restricted_area.value, // boolean
-    activity_type: formData.activity_type,
-  };
+  return formOutputSchema.parse(formData);
 };
