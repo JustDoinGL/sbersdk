@@ -1,148 +1,55 @@
-// Вспомогательные функции
-const sanitizeDigit = (value: string): string => {
-  return value.replace(/\D/g, "").slice(-1);
-};
+import { baseSchema } from "@/5_shared/validators/baseschema";
+import { z } from "zod";
+import { SalesPointDto } from "@/5_shared/api";
 
-const extractDigits = (text: string): string[] => {
-  return text.replace(/\D/g, "").split("").slice(0, 6);
-};
+export const restrictedAreaTypesOptions = [
+  {
+    label: "Да",
+    value: true,
+  },
+  {
+    label: "Нет",
+    value: false,
+  },
+];
 
-const validateGlobalInput = (value: string): boolean => {
-  return /^\d+$/.test(value);
-};
+// 1. Схема для входящих данных (преобразование boolean в объект)
+export const inputSalesPointSchema = z.object({
+  restricted_area: z.boolean(),
+  activity_type: z.number().optional(),
+});
 
-const showGlobalError = (message: string) => {
-  form.setError("root", { message });
-};
+// 2. Схема для формы (объект с value/label)
+export const SalesPointFormSchema = z.object({
+  restricted_area: z.object({ 
+    value: z.boolean(), 
+    label: z.string() 
+  }),
+  activity_type: z.number().optional(),
+});
 
-const clearGlobalError = () => {
-  form.clearErrors("root");
-};
+export type SalesPointFormSchema = z.infer<typeof SalesPointFormSchema>;
 
-const setDigitValue = (index: number, value: string, options = {}) => {
-  form.setValue(`digits.${index}`, value, { shouldValidate: true, ...options });
-};
+// 3. Схема для отправки на бекенд (обратно в boolean)
+export const apiSalesPointSchema = z.object({
+  restricted_area: z.boolean(),
+  activity_type: z.number().optional(),
+});
 
-const focusInput = (index: number) => {
-  inputRefs.current[index]?.focus();
-};
-
-// Обновленные обработчики
-const handleSendCode = async () => {
-  // ... существующий код
-};
-
-const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
-  event.preventDefault();
-  clearGlobalError();
-  
-  const pastedText = event.clipboardData.getData("text/plain").trim();
-  
-  // Глобальная проверка на числа
-  if (!validateGlobalInput(pastedText)) {
-    showGlobalError("Вводите только числа");
-    return;
-  }
-  
-  const pastedDigits = extractDigits(pastedText);
-  
-  if (pastedDigits.length > 0) {
-    form.reset();
-    pastedDigits.forEach((digit, index) => {
-      setDigitValue(index, digit);
-    });
-    
-    const nextFocusIndex = Math.min(pastedDigits.length, 5);
-    focusInput(nextFocusIndex);
-  }
-  
-  handleSendCode();
-};
-
-const handleChange = (index: number, value: string) => {
-  clearGlobalError();
-  
-  // Глобальная проверка на числа
-  if (value && !validateGlobalInput(value)) {
-    showGlobalError("Вводите только числа");
-    return;
-  }
-  
-  const digit = sanitizeDigit(value);
-  setDigitValue(index, digit);
-
-  // Если ввели цифру и есть следующее поле - фокусируемся на нем
-  if (digit && index < 5) {
-    focusInput(index + 1);
-  }
-
-  // Если стерли цифру и есть предыдущее поле - фокусируемся на нем
-  if (!digit && index > 0) {
-    focusInput(index - 1);
-  }
-
-  handleSendCode();
-};
-
-const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
-  clearGlobalError();
-  const digits = form.getValues("digits");
-
-  if (event.key === "Backspace") {
-    // Если поле пустое и не первое - переходим к предыдущему
-    if (!digits[index] && index > 0) {
-      setDigitValue(index - 1, "");
-      focusInput(index - 1);
-      event.preventDefault();
-    }
-    // Если в поле есть значение - очищаем его
-    else if (digits[index]) {
-      setDigitValue(index, "");
-      event.preventDefault();
-    }
-  }
-  else if (event.key === "ArrowLeft" && index > 0) {
-    event.preventDefault();
-    focusInput(index - 1);
-  }
-  else if (event.key === "ArrowRight" && index < 5) {
-    event.preventDefault();
-    focusInput(index + 1);
-  }
-  // Обработка ввода цифр
-  else if (/\d/.test(event.key)) {
-    // Глобальная проверка на числа
-    if (!validateGlobalInput(event.key)) {
-      showGlobalError("Вводите только числа");
-      event.preventDefault();
-      return;
-    }
-    
-    // Если поле уже заполнено - заменяем значение
-    if (digits[index]) {
-      setDigitValue(index, event.key);
-      if (index < 5) {
-        focusInput(index + 1);
-      }
-      event.preventDefault();
-    }
-  }
-
-  handleSendCode();
-};
-
-const registerField = (index: number) => {
-  const { ref, ...rest } = form.register(`digits.${index}`, { 
-    required: true,
-    pattern: /^\d$/,
-  });
-
+// Маппер для преобразования входящих данных в форму
+export const mapperSalesPointForm = (salesPoint: SalesPointDto) => {
   return {
-    ...rest,
-    value: form.getValues(`digits.${index}`) || "",
-    ref: (element: HTMLInputElement | null) => {
-      ref(element);
-      inputRefs.current[index] = element;
-    }
+    restricted_area: restrictedAreaTypesOptions.find(
+      (el) => el.value === salesPoint.restricted_area,
+    ),
+    activity_type: salesPoint.activity_type,
+  };
+};
+
+// Маппер для преобразования формы в данные для API
+export const mapperSalesPointToApi = (formData: SalesPointFormSchema) => {
+  return {
+    restricted_area: formData.restricted_area.value, // boolean
+    activity_type: formData.activity_type,
   };
 };
