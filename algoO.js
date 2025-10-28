@@ -1,184 +1,87 @@
-import React, { useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { Multiselect, Button } from 'sg-uikit';
+import { useState, useRef, useCallback } from 'react';
 
-// Схема валидации с Zod
-const smsCodeSchema = z.object({
-  code0: z.string().length(1, 'Введите цифру'),
-  code1: z.string().length(1, 'Введите цифру'),
-  code2: z.string().length(1, 'Введите цифру'),
-  code3: z.string().length(1, 'Введите цифру'),
-  code4: z.string().length(1, 'Введите цифру'),
-  code5: z.string().length(1, 'Введите цифру'),
-});
+// Хук для дебаунса без useEffect
+const useDebounceCallback = (callback, delay) => {
+    const timeoutRef = useRef(null);
 
-type SmsCodeFormData = z.infer<typeof smsCodeSchema>;
+    const debouncedCallback = useCallback((...args) => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
 
-interface SmsCodeFormProps {
-  onCodeSubmit: (code: string) => void;
-}
+        timeoutRef.current = setTimeout(() => {
+            callback(...args);
+        }, delay);
+    }, [callback, delay]);
 
-export const SmsCodeForm: React.FC<SmsCodeFormProps> = ({ onCodeSubmit }) => {
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    setFocus,
-    formState: { errors },
-  } = useForm<SmsCodeFormData>({
-    resolver: zodResolver(smsCodeSchema),
-    mode: 'onChange',
-    defaultValues: {
-      code0: '', code1: '', code2: '', code3: '', code4: '', code5: ''
-    }
-  });
-
-  const watchedValues = watch();
-
-  // Автоматическая отправка при заполнении всех полей
-  useEffect(() => {
-    const code = Object.values(watchedValues).join('');
-    if (code.length === 6 && /^\d+$/.test(code)) {
-      onCodeSubmit(code);
-    }
-  }, [watchedValues, onCodeSubmit]);
-
-  // Обработчик вставки текста
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text/plain').trim();
-    
-    // Оставляем только цифры
-    const digits = pastedData.replace(/\D/g, '').split('').slice(0, 6);
-    
-    if (digits.length > 0) {
-      // Заполняем поля вставленными цифрами
-      digits.forEach((digit, index) => {
-        setValue(`code${index}` as keyof SmsCodeFormData, digit);
-      });
-      
-      // Очищаем оставшиеся поля
-      for (let i = digits.length; i < 6; i++) {
-        setValue(`code${i}` as keyof SmsCodeFormData, '');
-      }
-      
-      // Фокус на следующий после последнего заполненного поля
-      const nextFocusIndex = Math.min(digits.length, 5);
-      setTimeout(() => {
-        setFocus(`code${nextFocusIndex}` as keyof SmsCodeFormData);
-      }, 0);
-    }
-  };
-
-  // Обработчик ввода символов
-  const handleInput = (
-    e: React.FormEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    const input = e.currentTarget;
-    let value = input.value;
-
-    // Оставляем только цифры
-    value = value.replace(/\D/g, '');
-
-    // Берем только последнюю цифру (если введено несколько)
-    if (value.length > 0) {
-      const digit = value.slice(-1);
-      
-      // Устанавливаем значение
-      setValue(`code${index}` as keyof SmsCodeFormData, digit);
-      
-      // Переходим к следующему полю
-      if (digit && index < 5) {
-        setTimeout(() => {
-          setFocus(`code${index + 1}` as keyof SmsCodeFormData);
-        }, 0);
-      }
-    } else {
-      // Если значение пустое, очищаем поле
-      setValue(`code${index}` as keyof SmsCodeFormData, '');
-    }
-  };
-
-  // Обработчик нажатия клавиш
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    const input = e.currentTarget;
-    
-    if (e.key === 'Backspace') {
-      // Если поле пустое и нажат Backspace - переходим к предыдущему полю и очищаем его
-      if (!input.value && index > 0) {
-        setValue(`code${index - 1}` as keyof SmsCodeFormData, '');
-        setTimeout(() => {
-          setFocus(`code${index - 1}` as keyof SmsCodeFormData);
-        }, 0);
-      }
-      // Если в поле есть значение - очищаем его и остаемся в этом поле
-      else if (input.value) {
-        setValue(`code${index}` as keyof SmsCodeFormData, '');
-      }
-    }
-    // Обработка стрелок
-    else if (e.key === 'ArrowLeft' && index > 0) {
-      e.preventDefault();
-      setTimeout(() => {
-        setFocus(`code${index - 1}` as keyof SmsCodeFormData);
-      }, 0);
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      e.preventDefault();
-      setTimeout(() => {
-        setFocus(`code${index + 1}` as keyof SmsCodeFormData);
-      }, 0);
-    }
-    // Блокировка букв и других символов
-    else if (e.key.length === 1 && !/\d/.test(e.key)) {
-      e.preventDefault();
-    }
-  };
-
-  // Обработчик фокуса - выделяем текст для перезаписи
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.select();
-  };
-
-  const onSubmit = (data: SmsCodeFormData) => {
-    const code = Object.values(data).join('');
-    onCodeSubmit(code);
-  };
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="sms-code-form">
-      <div className="sms-inputs-container">
-        {[0, 1, 2, 3, 4, 5].map((index) => (
-          <input
-            key={index}
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={1}
-            className={`sms-input ${errors[`code${index}` as keyof SmsCodeFormData] ? 'error' : ''}`}
-            {...register(`code${index}` as keyof SmsCodeFormData)}
-            ref={(el) => {
-              inputRefs.current[index] = el;
-            }}
-            onPaste={handlePaste}
-            onInput={(e) => handleInput(e, index)}
-            onKeyDown={(e) => handleKeyDown(e, index)}
-            onFocus={handleFocus}
-            autoComplete="one-time-code"
-          />
-        ))}
-      </div>
-      
-      <button type="submit" className="submit-button">
-        Подтвердить
-      </button>
-    </form>
-  );
+    return debouncedCallback;
 };
+
+const ManagersSelector = () => {
+    const [selectedManagers, setSelectedManagers] = useState([]);
+    const [managersOptions, setManagersOptions] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Функция поиска менеджеров
+    const searchManagers = useCallback(async (query) => {
+        if (!query.trim()) {
+            setManagersOptions([]);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/api/managers?search=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            
+            const options = data.map(manager => ({
+                label: `${manager.name} ${manager.surname} (${manager.department})`,
+                value: manager.id,
+            }));
+            
+            setManagersOptions(options);
+        } catch (error) {
+            console.error('Ошибка при поиске менеджеров:', error);
+            setManagersOptions([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    // Дебаунс версия функции поиска
+    const debouncedSearchManagers = useDebounceCallback(searchManagers, 300);
+
+    // Обработчик изменения input (поиска)
+    const handleInputChange = useCallback((value) => {
+        debouncedSearchManagers(value);
+    }, [debouncedSearchManagers]);
+
+    // Очистка всех выбранных менеджеров
+    const handleClear = useCallback(() => {
+        setSelectedManagers([]);
+        setManagersOptions([]);
+    }, []);
+
+    return (
+        <Multiselect
+            label="Выберите менеджеров"
+            placeholder="Начните вводить имя менеджера..."
+            options={managersOptions}
+            selected={selectedManagers}
+            onSelect={setSelectedManagers}
+            onInputChange={handleInputChange}
+            selectedItemsDisplayMode="below"
+            hasCheckbox={false}
+            isLoading={isLoading}
+            buttonClear={
+                <Button variant="ghost" onClick={handleClear}>
+                    Очистить все
+                </Button>
+            }
+            maxLength={undefined}
+        />
+    );
+};
+
+export default ManagersSelector;
