@@ -1,132 +1,120 @@
-import React, { useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { Multiselect, Button } from 'sg-uikit';
+import { useState, useRef, useCallback } from 'react';
 
-// Схема валидации с Zod
-const smsCodeSchema = z.object({
-  code0: z.string().length(1, 'Введите цифру'),
-  code1: z.string().length(1, 'Введите цифру'),
-  code2: z.string().length(1, 'Введите цифру'),
-  code3: z.string().length(1, 'Введите цифру'),
-  code4: z.string().length(1, 'Введите цифру'),
-  code5: z.string().length(1, 'Введите цифру'),
-});
-
-type SmsCodeFormData = z.infer<typeof smsCodeSchema>;
-
-interface SmsCodeFormProps {
-  onCodeSubmit: (code: string) => void;
+// Типы для менеджера
+interface Manager {
+  id: string;
+  name: string;
+  surname: string;
+  department?: string;
+  fullName?: string;
 }
 
-export const SmsCodeForm: React.FC<SmsCodeFormProps> = ({ onCodeSubmit }) => {
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<SmsCodeFormData>({
-    resolver: zodResolver(smsCodeSchema),
-    mode: 'onChange',
-  });
+// Типы для опций MultiSelect
+interface Option {
+  label: string;
+  value: string;
+}
 
-  const watchedValues = watch();
+// Пропсы для компонента (если нужны)
+interface ManagersSelectorProps {
+  // Можно добавить дополнительные пропсы при необходимости
+}
 
-  // Автоматическая отправка при заполнении всех полей
-  useEffect(() => {
-    const code = Object.values(watchedValues).join('');
-    if (code.length === 6) {
-      onCodeSubmit(code);
+// Хук для дебаунса без useEffect
+const useDebounceCallback = <T extends (...args: any[]) => void>(
+  callback: T,
+  delay: number
+): ((...args: Parameters<T>) => void) => {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const debouncedCallback = useCallback((...args: Parameters<T>) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
-  }, [watchedValues, onCodeSubmit]);
 
-  // Обработчик изменения значения в инпуте
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    const value = e.target.value;
-    
-    // Если вставлено несколько символов (paste)
-    if (value.length > 1) {
-      const digits = value.split('').slice(0, 6);
-      digits.forEach((digit, digitIndex) => {
-        if (digitIndex + index < 6) {
-          setValue(`code${digitIndex + index}` as keyof SmsCodeFormData, digit);
-        }
-      });
-      
-      // Фокус на последний инпут
-      const lastIndex = Math.min(index + digits.length - 1, 5);
-      inputRefs.current[lastIndex]?.focus();
+    timeoutRef.current = setTimeout(() => {
+      callback(...args);
+    }, delay);
+  }, [callback, delay]);
+
+  return debouncedCallback;
+};
+
+const ManagersSelector: React.FC<ManagersSelectorProps> = () => {
+  const [selectedManagers, setSelectedManagers] = useState<Option[]>([]);
+  const [managersOptions, setManagersOptions] = useState<Option[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Функция поиска менеджеров
+  const searchManagers = useCallback(async (query: string): Promise<void> => {
+    if (!query.trim()) {
+      setManagersOptions([]);
       return;
     }
 
-    // Один символ - переходим к следующему инпуту
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/managers?search=${encodeURIComponent(query)}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: Manager[] = await response.json();
+      
+      const options: Option[] = data.map(manager => ({
+        label: manager.fullName || `${manager.name} ${manager.surname}${manager.department ? ` (${manager.department})` : ''}`,
+        value: manager.id,
+      }));
+      
+      setManagersOptions(options);
+    } catch (error) {
+      console.error('Ошибка при поиске менеджеров:', error);
+      setManagersOptions([]);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, []);
 
-  // Обработчик удаления (Backspace)
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    if (e.key === 'Backspace' && !e.currentTarget.value && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
+  // Дебаунс версия функции поиска
+  const debouncedSearchManagers = useDebounceCallback(searchManagers, 300);
 
-  // Обработчик стрелок
-  const handleArrowKey = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
+  // Обработчик изменения input (поиска)
+  const handleInputChange = useCallback((value: string) => {
+    debouncedSearchManagers(value);
+  }, [debouncedSearchManagers]);
 
-  const onSubmit = (data: SmsCodeFormData) => {
-    const code = Object.values(data).join('');
-    onCodeSubmit(code);
-  };
+  // Обработчик выбора менеджеров
+  const handleSelect = useCallback((selected: Option[]) => {
+    setSelectedManagers(selected);
+  }, []);
+
+  // Очистка всех выбранных менеджеров
+  const handleClear = useCallback(() => {
+    setSelectedManagers([]);
+    setManagersOptions([]);
+  }, []);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="sms-code-form">
-      <div className="sms-inputs-container">
-        {[0, 1, 2, 3, 4, 5].map((index) => (
-          <input
-            key={index}
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={1}
-            className={`sms-input ${errors[`code${index}` as keyof SmsCodeFormData] ? 'error' : ''}`}
-            {...register(`code${index}` as keyof SmsCodeFormData)}
-            ref={(el) => {
-              inputRefs.current[index] = el;
-            }}
-            onChange={(e) => handleInputChange(e, index)}
-            onKeyDown={(e) => {
-              handleKeyDown(e, index);
-              handleArrowKey(e, index);
-            }}
-            onFocus={(e) => e.target.select()}
-          />
-        ))}
-      </div>
-      
-      {/* Кнопка отправки (опционально) */}
-      <button type="submit" className="submit-button">
-        Подтвердить
-      </button>
-    </form>
+    <Multiselect
+      label="Выберите менеджеров"
+      placeholder="Начните вводить имя менеджера..."
+      options={managersOptions}
+      selected={selectedManagers}
+      onSelect={handleSelect}
+      onInputChange={handleInputChange}
+      selectedItemsDisplayMode="below"
+      hasCheckbox={false}
+      isLoading={isLoading}
+      buttonClear={
+        <Button variant="ghost" onClick={handleClear}>
+          Очистить все
+        </Button>
+      }
+      maxLength={undefined}
+    />
   );
 };
+
+export default ManagersSelector;
