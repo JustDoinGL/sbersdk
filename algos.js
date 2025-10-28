@@ -1,70 +1,113 @@
-import { type MultiselectProps, Multiselect, Button, useToast, type Option } from "@sg/utkit";
-import { Control, Controller, FieldValues, Path } from "react-hook-form";
-import { ErrorMessage } from "./error_message";
-import { useRef, useState, useCallback } from "react";
-import { api, ProfileDto } from "@/5_shared/api";
+import { api } from "@/5_shared/api";
+import { dateUtils } from "@/5_shared/date";
+import { InputDate, useToast } from "@sg/uikit";
+import { useState } from "react";
 
-type Props<FormData extends FieldValues> = {
-  control: Control<FormData>;
-  name: Path<FormData>;
-  wrapperClassName?: string;
-} & MultiselectProps<Option>;
+type Props = {
+  unitId: string;
+  preview: string | null;
+};
 
-export const ControlledMultiselectManager = <FormData extends FieldValues>({
-  control,
-  name,
-  wrapperClassName,
-  ...rest
-}: Props<FormData>) => {
-  const [managersOptions, setManagersOptions] = useState<ProfileDto[]>([]);
-  const { push } = useToast();
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+const formatData = (date: string | null) => {
+  if (typeof date !== "string") {
+    return null;
+  }
+  return dateUtils.getLocaleDate(date);
+};
+
+// Конвертирует формат "день.месяц.год" в стандартный формат даты
+const convertDotFormatToDate = (dateString: string | null): string | null => {
+  if (!dateString) return null;
   
-  const searchManagers = async (search: string) => {
+  // Проверяем формат "день.месяц.год"
+  const dotFormatRegex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+  const match = dateString.match(dotFormatRegex);
+  
+  if (match) {
+    const [, day, month, year] = match;
+    // Создаем дату в формате YYYY-MM-DD
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  
+  return dateString;
+};
+
+const isDateValid = (date: string | null): boolean => {
+  if (!date) return false;
+  
+  // Конвертируем если нужно
+  const convertedDate = convertDotFormatToDate(date);
+  if (!convertedDate) return false;
+  
+  return dateUtils.isDatePassed(convertedDate);
+};
+
+export const SalesPointInputDate: React.FC<Props> = ({ unitId, preview }) => {
+  const [date, setDate] = useState<string | null>(() => formatData(preview));
+  const [error, setError] = useState(false);
+  const { push } = useToast();
+
+  const handleDateChange = (date: string | null) => {
+    setError(false);
+    
+    // Конвертируем формат "день.месяц.год" при изменении
+    const convertedDate = convertDotFormatToDate(date);
+    setDate(convertedDate);
+  };
+
+  const sendSalesPointDate = async () => {
+    console.log('Current date:', date);
+    
+    if (!date || !isDateValid(date)) {
+      setError(true);
+      return;
+    }
+
     try {
-      const response = await api.profile_methods.getProfileByQuery(search || " ");
-      setManagersOptions(response.results);
-    } catch (e) {
-      console.log(e);
-      push({ title: "Ошибка при загрузке списка", type: "error" });
+      await api.sales_point.patchSalesPointUnit(unitId, {
+        close_date: dateUtils.getIsoDate(date),
+      });
+      push({ type: "success", title: "Дата успешно изменена" });
+    } catch (error) {
+      console.error(error);
+      push({ type: "error", title: "Ошибка при изменении даты" });
     }
   };
 
-  const debouncedSearchManagers = useCallback((search: string) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+  // Функция для отображения даты в нужном формате
+  const getDisplayValue = (): string | undefined => {
+    if (!date) return undefined;
+    
+    // Если дата уже в формате "день.месяц.год", возвращаем как есть
+    const dotFormatRegex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+    if (date.match(dotFormatRegex)) {
+      return date;
     }
-    timeoutRef.current = setTimeout(() => {
-      searchManagers(search);
-    }, 500);
-  }, [searchManagers]);
+    
+    // Иначе конвертируем в формат для отображения
+    try {
+      const dateObj = new Date(date);
+      if (!isNaN(dateObj.getTime())) {
+        const day = dateObj.getDate().toString().padStart(2, '0');
+        const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+        const year = dateObj.getFullYear();
+        return `${day}.${month}.${year}`;
+      }
+    } catch (e) {
+      console.error('Error formatting date:', e);
+    }
+    
+    return date;
+  };
 
   return (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field, fieldState }) => (
-        <div className={wrapperClassName}>
-          <Multiselect
-            label="Выберите менеджеров"
-            placeholder="Начните вводить имя менеджера..."
-            options={managersOptions}
-            selected={field.value}
-            onSelect={(value) => field.onChange(value)}
-            onInputChange={debouncedSearchManagers}
-            selectedItemsDisplayMode="below"
-            buttonClear={
-              <Button variant="ghost" onClick={() => field.onChange([])}>
-                Очистить все
-              </Button>
-            }
-            {...rest}
-          />
-          {fieldState.error?.message && (
-            <ErrorMessage error={fieldState.error.message} />
-          )}
-        </div>
-      )}
+    <InputDate
+      size="sm"
+      placeholder="дд.мм.гггг"
+      hasError={error}
+      onBlur={sendSalesPointDate}
+      value={getDisplayValue()}
+      onChange={handleDateChange}
     />
   );
 };
