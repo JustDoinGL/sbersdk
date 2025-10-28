@@ -1,18 +1,18 @@
 import { useToast } from "@sg/uikit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, PatchSalesPointDto } from "@/5_shared/api";
-import { SalesPointParamsDto, salesPointQueryOptions } from "./query_options";
+import { api, PatchSalesPointDto, SalesPointDto } from "@/5_shared/api";
+import { salesPointQueryOptions } from "./query_options";
 
-export function useUpdateSalesPoint(id: string) {
+export function useUpdateSalesPoint() {
     const queryClient = useQueryClient();
     const { push } = useToast();
 
     const { mutate, isPending, data } = useMutation({
-        mutationFn: (salesPoint: Partial<PatchSalesPointDto>) => 
+        mutationFn: ({ id, salesPoint }: { id: string; salesPoint: Partial<PatchSalesPointDto> }) => 
             api.sales_point.patchSalesPointById(id, salesPoint),
         async onSuccess() {
             await queryClient.invalidateQueries({
-                queryKey: [salesPointQueryOptions.baseKey, "point", id],
+                queryKey: [salesPointQueryOptions.baseKey, "point"],
             });
         },
         onError(error: Error) {
@@ -22,12 +22,13 @@ export function useUpdateSalesPoint(id: string) {
     });
 
     const handleUpdateSalesPoint = (
+        id: string,
         salesPoint: Partial<PatchSalesPointDto>,
         options?: {
-            onSuccess?: (data: SalesPointParamsDto) => void;
+            onSuccess?: (data: SalesPointDto, variables: Partial<PatchSalesPointDto>, context: unknown) => void;
         }
     ) => {
-        mutate(salesPoint, {
+        mutate({ id, salesPoint }, {
             onSuccess: options?.onSuccess,
         });
     };
