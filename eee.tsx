@@ -1,29 +1,48 @@
-function extractDate(errorText: string): string | null {
-  const dateRegex = /(\w{3} \w{3} \d{1,2} \d{4})/;
-  const match = errorText.match(dateRegex);
+const handleManagersChangeSimple = async (newManagers: Managers[]) => {
+  const oldManagers = managersRef.current;
+  const { toAdd, toDelete } = compareArrays(oldManagers, newManagers);
   
-  if (!match) return null;
-  
-  const date = new Date(match[0]);
-  if (isNaN(date.getTime())) return null;
-  
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
-}
+  let hasErrors = false;
+  const errors: string[] = [];
 
-// Использование
-const errorLog = `componentStack: '\n    at 5
-alesPointInputDate (https://
-localhost:300../localhost:30
-00/index.tsx?t=176166365610
-0:35:20)';
+  // Обрабатываем добавление
+  for (const manager of toAdd) {
+    try {
+      await api.addManager(salesPoint.id, manager);
+      console.log(`Менеджер ${manager.label} добавлен`);
+    } catch (error) {
+      console.error(`Ошибка добавления ${manager.label}:`, error);
+      hasErrors = true;
+      errors.push(`Не удалось добавить ${manager.label}`);
+    }
+  }
 
-sales_point_input da…?t=176166…
-Sat Feb 01 2121 00:00:00
-GMT+0300 (MockBa, стандартное время)`;
+  // Обрабатываем удаление
+  for (const manager of toDelete) {
+    try {
+      await api.deleteManager(salesPoint.id, manager.value);
+      console.log(`Менеджер ${manager.label} удален`);
+    } catch (error) {
+      console.error(`Ошибка удаления ${manager.label}:`, error);
+      hasErrors = true;
+      errors.push(`Не удалось удалить ${manager.label}`);
+    }
+  }
 
-const result = extractDate(errorLog); // "2121-02-01"
-console.log(result);
+  // Обновляем ref если нет ошибок
+  if (!hasErrors) {
+    managersRef.current = newManagers;
+    push({
+      title: "Менеджеры успешно обновлены",
+      type: "positive",
+    });
+  } else {
+    push({
+      title: "Ошибки при обновлении менеджеров",
+      description: errors.join(', '),
+      type: "negative",
+    });
+  }
+
+  return { success: !hasErrors, errors };
+};
