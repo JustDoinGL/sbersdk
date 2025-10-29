@@ -1,48 +1,58 @@
-const handleManagersChangeSimple = async (newManagers: Managers[]) => {
+const handleManagersChangeWithSettled = async (newManagers: Managers[]): Promise<{success: boolean}> => {
   const oldManagers = managersRef.current;
-  const { toAdd, toDelete } = compareArrays(oldManagers, newManagers);
   
-  let hasErrors = false;
-  const errors: string[] = [];
+  const toAdd = newManagers.filter(newItem => 
+    !oldManagers.some(oldItem => oldItem.value === newItem.value)
+  );
+  
+  const toRemove = oldManagers.filter(oldItem => 
+    !newManagers.some(newItem => newItem.value === newItem.value)
+  );
 
-  // Обрабатываем добавление
-  for (const manager of toAdd) {
-    try {
-      await api.addManager(salesPoint.id, manager);
-      console.log(`Менеджер ${manager.label} добавлен`);
-    } catch (error) {
-      console.error(`Ошибка добавления ${manager.label}:`, error);
-      hasErrors = true;
-      errors.push(`Не удалось добавить ${manager.label}`);
-    }
+  if (toAdd.length === 0 && toRemove.length === 0) {
+    return { success: true };
   }
 
-  // Обрабатываем удаление
-  for (const manager of toDelete) {
-    try {
-      await api.deleteManager(salesPoint.id, manager.value);
-      console.log(`Менеджер ${manager.label} удален`);
-    } catch (error) {
-      console.error(`Ошибка удаления ${manager.label}:`, error);
-      hasErrors = true;
-      errors.push(`Не удалось удалить ${manager.label}`);
-    }
-  }
+  const promises = [
+    ...toAdd.map(manager => 
+      api.patchedSetManagers({
+        instance_id: salesPoint.id,
+        manager: parseInt(manager.value),
+        action: ActionEnum.ADD,
+        dto: DtoEnum.SALES_POINT
+      }).then(() => ({ type: 'add', manager, success: true }))
+    ),
+    ...toRemove.map(manager => 
+      api.patchedSetManagers({
+        instance_id: salesPoint.id,
+        manager: parseInt(manager.value),
+        action: ActionEnum.REMOVE,
+        dto: DtoEnum.SALES_POINT
+      }).then(() => ({ type: 'remove', manager, success: true }))
+    )
+  ];
 
-  // Обновляем ref если нет ошибок
-  if (!hasErrors) {
-    managersRef.current = newManagers;
+  const results = await Promise.allSettled(promises);
+  
+  const successful = results.filter((result): result is PromiseFulfilledResult<any> => 
+    result.status === 'fulfilled'
+  );
+  const failed = results.filter(result => result.status === 'rejected');
+
+  if (failed.length > 0) {
+    console.error(`Не удалось выполнить ${failed.length} операций с менеджерами`);
     push({
-      title: "Менеджеры успешно обновлены",
-      type: "positive",
-    });
-  } else {
-    push({
-      title: "Ошибки при обновлении менеджеров",
-      description: errors.join(', '),
+      title: `Ошибка в ${failed.length} операциях с менеджерами`,
       type: "negative",
     });
+    return { success: false };
   }
 
-  return { success: !hasErrors, errors };
+  managersRef.current = newManagers;
+  push({
+    title: `Успешно обновлено ${successful.length} менеджеров`,
+    type: "positive",
+  });
+  
+  return { success: true };
 };
