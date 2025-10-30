@@ -1,120 +1,57 @@
-import { Multiselect, Button } from 'sg-uikit';
-import { useState, useRef, useCallback } from 'react';
+import { useLayoutEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-// Типы для менеджера
-interface Manager {
-  id: string;
-  name: string;
-  surname: string;
-  department?: string;
-  fullName?: string;
-}
-
-// Типы для опций MultiSelect
-interface Option {
-  label: string;
-  value: string;
-}
-
-// Пропсы для компонента (если нужны)
-interface ManagersSelectorProps {
-  // Можно добавить дополнительные пропсы при необходимости
-}
-
-// Хук для дебаунса без useEffect
-const useDebounceCallback = <T extends (...args: any[]) => void>(
-  callback: T,
-  delay: number
-): ((...args: Parameters<T>) => void) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const debouncedCallback = useCallback((...args: Parameters<T>) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    timeoutRef.current = setTimeout(() => {
-      callback(...args);
-    }, delay);
-  }, [callback, delay]);
-
-  return debouncedCallback;
+// Определяем роли
+const ROLES = {
+  ADMIN: 'admin',
+  USER: 'user',
+  GUEST: 'guest'
 };
 
-const ManagersSelector: React.FC<ManagersSelectorProps> = () => {
-  const [selectedManagers, setSelectedManagers] = useState<Option[]>([]);
-  const [managersOptions, setManagersOptions] = useState<Option[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+const ProtectedRoute = ({ userRole, allowedRoles, children }) => {
+  const navigate = useNavigate();
 
-  // Функция поиска менеджеров
-  const searchManagers = useCallback(async (query: string): Promise<void> => {
-    if (!query.trim()) {
-      setManagersOptions([]);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/managers?search=${encodeURIComponent(query)}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  useLayoutEffect(() => {
+    // Проверяем, есть ли у пользователя нужная роль
+    if (!allowedRoles.includes(userRole)) {
+      // Перенаправляем в зависимости от роли
+      switch (userRole) {
+        case ROLES.ADMIN:
+          navigate('/admin/dashboard');
+          break;
+        case ROLES.USER:
+          navigate('/user/profile');
+          break;
+        case ROLES.GUEST:
+          navigate('/login');
+          break;
+        default:
+          navigate('/unauthorized');
       }
-      
-      const data: Manager[] = await response.json();
-      
-      const options: Option[] = data.map(manager => ({
-        label: manager.fullName || `${manager.name} ${manager.surname}${manager.department ? ` (${manager.department})` : ''}`,
-        value: manager.id,
-      }));
-      
-      setManagersOptions(options);
-    } catch (error) {
-      console.error('Ошибка при поиске менеджеров:', error);
-      setManagersOptions([]);
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  }, [userRole, allowedRoles, navigate]);
 
-  // Дебаунс версия функции поиска
-  const debouncedSearchManagers = useDebounceCallback(searchManagers, 300);
+  // Если роль подходит, рендерим children
+  if (allowedRoles.includes(userRole)) {
+    return children;
+  }
 
-  // Обработчик изменения input (поиска)
-  const handleInputChange = useCallback((value: string) => {
-    debouncedSearchManagers(value);
-  }, [debouncedSearchManagers]);
+  // Или возвращаем null во время переадресации
+  return null;
+};
 
-  // Обработчик выбора менеджеров
-  const handleSelect = useCallback((selected: Option[]) => {
-    setSelectedManagers(selected);
-  }, []);
-
-  // Очистка всех выбранных менеджеров
-  const handleClear = useCallback(() => {
-    setSelectedManagers([]);
-    setManagersOptions([]);
-  }, []);
+// Пример использования
+const App = () => {
+  const currentUser = {
+    role: 'user' // пример роли пользователя
+  };
 
   return (
-    <Multiselect
-      label="Выберите менеджеров"
-      placeholder="Начните вводить имя менеджера..."
-      options={managersOptions}
-      selected={selectedManagers}
-      onSelect={handleSelect}
-      onInputChange={handleInputChange}
-      selectedItemsDisplayMode="below"
-      hasCheckbox={false}
-      isLoading={isLoading}
-      buttonClear={
-        <Button variant="ghost" onClick={handleClear}>
-          Очистить все
-        </Button>
-      }
-      maxLength={undefined}
-    />
+    <ProtectedRoute 
+      userRole={currentUser.role} 
+      allowedRoles={[ROLES.ADMIN, ROLES.USER]} // Разрешенные роли для этого маршрута
+    >
+      <div>Секретный контент</div>
+    </ProtectedRoute>
   );
 };
-
-export default ManagersSelector;
