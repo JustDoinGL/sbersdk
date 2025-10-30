@@ -1,87 +1,72 @@
-import { Multiselect, Button } from 'sg-uikit';
-import { useState, useRef, useCallback } from 'react';
+const promises = [
+  ...toAdd.map((manager) =>
+    api.sales_point
+      .patchSalesPointManagers({
+        instance_id: salesPoint.id,
+        manager: parseInt(manager.value),
+        action: 1,
+        dto: 1,
+      })
+      .then(() => ({ success: true }))
+      .catch(() => ({ success: false })),
+  ),
+  ...toRemove.map((manager) =>
+    api.sales_point
+      .patchSalesPointManagers({
+        instance_id: salesPoint.id,
+        manager: parseInt(manager.value),
+        action: 2,
+        dto: 1,
+      })
+      .then(() => ({ success: true }))
+      .catch(() => ({ success: false })),
+  ),
+];
 
-// Хук для дебаунса без useEffect
-const useDebounceCallback = (callback, delay) => {
-    const timeoutRef = useRef(null);
+const results = await Promise.allSettled(promises);
 
-    const debouncedCallback = useCallback((...args) => {
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
+const failed = results.filter(
+  (result) => result.status === "fulfilled" && !result.value.success,
+);
 
-        timeoutRef.current = setTimeout(() => {
-            callback(...args);
-        }, delay);
-    }, [callback, delay]);
+if (failed.length > 0) {
+  console.error('Не удалось выполнить операции с менеджерами');
+  
+  const failedManagers = [];
+  
+  // Добавляем информацию о неудачных операциях
+  failed.forEach((result, index) => {
+    if (index < toAdd.length) {
+      // Это была операция добавления
+      const manager = toAdd[index];
+      failedManagers.push(`добавить менеджера "${manager.label}"`);
+    } else {
+      // Это была операция удаления
+      const managerIndex = index - toAdd.length;
+      const manager = toRemove[managerIndex];
+      failedManagers.push(`удалить менеджера "${manager.label}"`);
+    }
+  });
+  
+  push({
+    title: `Ошибка при обновлении менеджеров`,
+    message: `Не удалось: ${failedManagers.join(', ')}`,
+    type: "error",
+  });
+  
+  return { success: false };
+}
 
-    return debouncedCallback;
+managersRef.current = newManagers;
+
+push({
+  title: `Менеджеры успешно обновлены`,
+  type: "positive",
+});
+
+return { success: true };
 };
 
-const ManagersSelector = () => {
-    const [selectedManagers, setSelectedManagers] = useState([]);
-    const [managersOptions, setManagersOptions] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    // Функция поиска менеджеров
-    const searchManagers = useCallback(async (query) => {
-        if (!query.trim()) {
-            setManagersOptions([]);
-            return;
-        }
-
-        setIsLoading(true);
-        try {
-            const response = await fetch(`/api/managers?search=${encodeURIComponent(query)}`);
-            const data = await response.json();
-            
-            const options = data.map(manager => ({
-                label: `${manager.name} ${manager.surname} (${manager.department})`,
-                value: manager.id,
-            }));
-            
-            setManagersOptions(options);
-        } catch (error) {
-            console.error('Ошибка при поиске менеджеров:', error);
-            setManagersOptions([]);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    // Дебаунс версия функции поиска
-    const debouncedSearchManagers = useDebounceCallback(searchManagers, 300);
-
-    // Обработчик изменения input (поиска)
-    const handleInputChange = useCallback((value) => {
-        debouncedSearchManagers(value);
-    }, [debouncedSearchManagers]);
-
-    // Очистка всех выбранных менеджеров
-    const handleClear = useCallback(() => {
-        setSelectedManagers([]);
-        setManagersOptions([]);
-    }, []);
-
-    return (
-        <Multiselect
-            label="Выберите менеджеров"
-            placeholder="Начните вводить имя менеджера..."
-            options={managersOptions}
-            selected={selectedManagers}
-            onSelect={setSelectedManagers}
-            onInputChange={handleInputChange}
-            selectedItemsDisplayMode="below"
-            hasCheckbox={false}
-            isLoading={isLoading}
-            buttonClear={
-                <Button variant="ghost" onClick={handleClear}>
-                    Очистить все
-                </Button>
-            }
-            maxLength={undefined}
-        />
-    );
-};
-
-export default ManagersSelector;
+const handleAwesome = async () => {
+  // refresh logic here
+}
