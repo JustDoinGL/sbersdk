@@ -1,72 +1,27 @@
-const promises = [
-  ...toAdd.map((manager) =>
-    api.sales_point
-      .patchSalesPointManagers({
-        instance_id: salesPoint.id,
-        manager: parseInt(manager.value),
-        action: 1,
-        dto: 1,
-      })
-      .then(() => ({ success: true }))
-      .catch(() => ({ success: false })),
-  ),
-  ...toRemove.map((manager) =>
-    api.sales_point
-      .patchSalesPointManagers({
-        instance_id: salesPoint.id,
-        manager: parseInt(manager.value),
-        action: 2,
-        dto: 1,
-      })
-      .then(() => ({ success: true }))
-      .catch(() => ({ success: false })),
-  ),
-];
+import { CurrentProfileDto } from "@/5_shared/api";
+import { createContext, useContext } from "react";
 
-const results = await Promise.allSettled(promises);
+type UserContext = CurrentProfileDto;
 
-const failed = results.filter(
-  (result) => result.status === "fulfilled" && !result.value.success,
-);
+export const UserContext = createContext<UserContext | null>(null);
 
-if (failed.length > 0) {
-  console.error('Не удалось выполнить операции с менеджерами');
-  
-  const failedManagers = [];
-  
-  // Добавляем информацию о неудачных операциях
-  failed.forEach((result, index) => {
-    if (index < toAdd.length) {
-      // Это была операция добавления
-      const manager = toAdd[index];
-      failedManagers.push(`добавить менеджера "${manager.label}"`);
-    } else {
-      // Это была операция удаления
-      const managerIndex = index - toAdd.length;
-      const manager = toRemove[managerIndex];
-      failedManagers.push(`удалить менеджера "${manager.label}"`);
-    }
-  });
-  
-  push({
-    title: `Ошибка при обновлении менеджеров`,
-    message: `Не удалось: ${failedManagers.join(', ')}`,
-    type: "error",
-  });
-  
-  return { success: false };
-}
+export const useUser = () => {
+  const context = useContext(UserContext);
 
-managersRef.current = newManagers;
+  if (!context) {
+    throw new Error("Нужно использовать внутри UserContext");
+  }
 
-push({
-  title: `Менеджеры успешно обновлены`,
-  type: "positive",
-});
+  const groupsMap = new Map(context.groups.map(group => [group.name, true]));
 
-return { success: true };
+  return {
+    ...context,
+    canFullSearch: context?.permissions.includes("auth.can_full_search"),
+    allowTeam: !context.is_leaf,
+    allowBranch: context.branches.length > 0,
+    allowCompany: context.is_admin,
+    isAgent: groupsMap.has("Агент-сотрудник"),
+    isMag: groupsMap.has("Менеджер агентской группы"),
+    isWriter: groupsMap.has("Подписант"),
+  };
 };
-
-const handleAwesome = async () => {
-  // refresh logic here
-}
