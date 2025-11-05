@@ -1,27 +1,63 @@
-import { CurrentProfileDto } from "@/5_shared/api";
-import { createContext, useContext } from "react";
+import { Routes } from "@/5_shared/routes/routes.desktop";
+import { useUser } from "@/4_entities/profile";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useLayoutEffect, useState } from "react";
 
-type UserContext = CurrentProfileDto;
+const MY_DOCUMENT_ROUTE = Routes.DOCUMENTS + "/" + DocumentsRoutes.MY_DOCUMENTS;
+const NEW_AGENTS_ROUTE = Routes.DOCUMENTS + "/" + DocumentsRoutes.NEW_AGENTS;
 
-export const UserContext = createContext<UserContext | null>(null);
+// Декларативное описание сегментов с правилами доступа
+const DOCUMENT_SEGMENTS = [
+  {
+    value: Routes.DOCUMENTS,
+    label: "Архив КД",
+    isAvailable: (user) => user.isAgent || user.isMag || user.isWriter,
+  },
+  {
+    value: MY_DOCUMENT_ROUTE,
+    label: "Мои документы", 
+    isAvailable: (user) => user.isAgent,
+  },
+  {
+    value: NEW_AGENTS_ROUTE,
+    label: "Новые агенты",
+    isAvailable: (user) => user.isMag,
+  },
+] as const;
 
-export const useUser = () => {
-  const context = useContext(UserContext);
+export const Documents: FC = () => {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const user = useUser();
+  
+  const [availableSegments, setAvailableSegments] = useState<typeof DOCUMENT_SEGMENTS>([]);
 
-  if (!context) {
-    throw new Error("Нужно использовать внутри UserContext");
-  }
+  useLayoutEffect(() => {
+    // Фильтрация сегментов по доступным для пользователя
+    const filteredSegments = DOCUMENT_SEGMENTS.filter(segment => 
+      segment.isAvailable(user)
+    );
+    
+    setAvailableSegments(filteredSegments);
 
-  const groupsMap = new Map(context.groups.map(group => [group.name, true]));
+    // Перенаправление если текущий путь недоступен
+    const isCurrentPathAvailable = filteredSegments.some(segment => 
+      segment.value === pathname
+    );
+    
+    if (!isCurrentPathAvailable && filteredSegments.length > 0) {
+      navigate(filteredSegments[0].value);
+    }
+  }, [user, pathname, navigate]);
 
-  return {
-    ...context,
-    canFullSearch: context?.permissions.includes("auth.can_full_search"),
-    allowTeam: !context.is_leaf,
-    allowBranch: context.branches.length > 0,
-    allowCompany: context.is_admin,
-    isAgent: groupsMap.has("Агент-сотрудник"),
-    isMag: groupsMap.has("Менеджер агентской группы"),
-    isWriter: groupsMap.has("Подписант"),
-  };
+  return (
+    <div className={styles.wrapper}>
+      <SegmentedControls
+        segments={availableSegments}
+        value={pathname}
+        onChange={(value) => navigate(value)}
+        size="small"
+      />
+    </div>
+  );
 };
