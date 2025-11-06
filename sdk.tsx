@@ -1,304 +1,261 @@
-// Если нужно преобразовать фильтры фронта в DTO для бэка
-export const FILTER_MAPPER: Record<string, string> = {
-  'deal_number': 'deal_number',
-  'client_name': 'client_name', 
-  'completion_date': 'completion_date',
-  'act_type': 'type',
-  'status': 'status',
-};
+// components/FiltersModal.tsx
+import { FC } from "react";
+import styles from "./FiltersModal.module.css";
 
-export const mapFiltersToFilterDto = (
-  filters: Record<string, any>,
-  mapper: Record<string, string>
-): Record<string, any> => {
-  const result: Record<string, any> = {};
-  
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      const dtoKey = mapper[key] || key;
-      result[dtoKey] = value;
-    }
-  });
-  
-  return result;
-};
-
-
-interface TableFiltersProps {
-  filters: Record<string, any>;
-  filterConfig: FilterConfig[];
-  onFilterChange: (filters: Record<string, any>) => void;
-  onReset: () => void;
+interface FiltersModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onApplyFilters: (filters: any) => void;
+  children?: React.ReactNode;
 }
 
-export const TableFilters: FC<TableFiltersProps> = ({
-  filters,
-  filterConfig,
-  onFilterChange,
-  onReset,
+export const FiltersModal: FC<FiltersModalProps> = ({
+  isOpen,
+  onClose,
+  onApplyFilters,
+  children
 }) => {
-  const [localFilters, setLocalFilters] = useState<Record<string, any>>(filters);
-  const [isOpen, setIsOpen] = useState(false);
+  if (!isOpen) return null;
 
-  // Синхронизируем локальные фильтры при изменении пропсов
-  useEffect(() => {
-    setLocalFilters(filters);
-  }, [filters]);
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.header}>
+          <h3>Фильтры</h3>
+          <button className={styles.closeButton} onClick={onClose}>×</button>
+        </div>
+        
+        <div className={styles.content}>
+          {children}
+        </div>
+        
+        <div className={styles.footer}>
+          <button className={styles.applyButton} onClick={onApplyFilters}>
+            Применить фильтры
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+
+// components/activities/ActivityFilters.tsx
+import { FC, useState } from "react";
+import { FiltersModal } from "../FiltersModal";
+import styles from "./ActivityFilters.module.css";
+
+interface ActivityFiltersProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onApplyFilters: (filters: ActivityFiltersData) => void;
+  initialFilters?: ActivityFiltersData;
+}
+
+export interface ActivityFiltersData {
+  deadline?: string;
+  types: string[];
+  statuses: string[];
+  insuranceTypes: string[];
+  clientName?: string;
+}
+
+export const ActivityFilters: FC<ActivityFiltersProps> = ({
+  isOpen,
+  onClose,
+  onApplyFilters,
+  initialFilters = {
+    types: [],
+    statuses: [],
+    insuranceTypes: [],
+  }
+}) => {
+  const [filters, setFilters] = useState<ActivityFiltersData>(initialFilters);
+
+  const handleFilterChange = (key: keyof ActivityFiltersData, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
 
   const handleApply = () => {
-    onFilterChange(localFilters);
-    setIsOpen(false);
+    onApplyFilters(filters);
+    onClose();
   };
-
-  const handleClear = () => {
-    setLocalFilters({});
-    onReset();
-    setIsOpen(false);
-  };
-
-  const updateLocalFilter = (key: string, value: any) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
-
-  const renderFilterInput = (config: FilterConfig) => {
-    const value = localFilters[config.key];
-
-    switch (config.type) {
-      case 'text':
-        return (
-          <Input
-            value={value || ''}
-            onChange={(e) => updateLocalFilter(config.key, e.target.value)}
-            placeholder={config.placeholder}
-          />
-        );
-
-      case 'multiselect':
-        return (
-          <Select
-            mode="multiple"
-            value={Array.isArray(value) ? value : []}
-            onChange={(selectedValues) => updateLocalFilter(config.key, selectedValues)}
-            options={config.options}
-            placeholder={config.placeholder}
-            style={{ width: '100%' }}
-          />
-        );
-
-      case 'date':
-        return (
-          <DatePicker
-            value={value ? dayjs(value) : null}
-            onChange={(date) => updateLocalFilter(config.key, date?.format('YYYY-MM-DD'))}
-            placeholder={config.placeholder}
-            style={{ width: '100%' }}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  // Счетчик активных фильтров
-  const activeFiltersCount = Object.keys(filters).filter(key => 
-    filters[key] !== undefined && 
-    filters[key] !== null && 
-    filters[key] !== '' &&
-    (!Array.isArray(filters[key]) || filters[key].length > 0)
-  ).length;
 
   return (
-    <div className={styles.filtersContainer}>
-      <Button 
-        type="primary"
-        onClick={() => setIsOpen(true)}
-        icon={<FilterOutlined />}
-      >
-        Фильтры
-        {activeFiltersCount > 0 && (
-          <span className={styles.filterBadge}>
-            {activeFiltersCount}
-          </span>
-        )}
-      </Button>
+    <FiltersModal
+      isOpen={isOpen}
+      onClose={onClose}
+      onApplyFilters={handleApply}
+    >
+      <div className={styles.filters}>
+        {/* Крайний срок */}
+        <div className={styles.filterGroup}>
+          <label>Крайний срок</label>
+          <input
+            type="date"
+            value={filters.deadline || ""}
+            onChange={(e) => handleFilterChange("deadline", e.target.value)}
+          />
+        </div>
 
-      <Modal
-        open={isOpen}
-        onCancel={() => setIsOpen(false)}
-        footer={null}
-        width={600}
-        title="Фильтры"
-      >
-        <div className={styles.filtersContent}>
-          <div className={styles.filtersHeader}>
-            <Button type="link" onClick={handleClear}>
-              Очистить все
-            </Button>
-          </div>
-
-          <div className={styles.filtersGrid}>
-            {filterConfig.map((config) => (
-              <div key={config.key} className={styles.filterItem}>
-                <div className={styles.filterLabel}>{config.label}</div>
-                {renderFilterInput(config)}
-              </div>
+        {/* Тип */}
+        <div className={styles.filterGroup}>
+          <label>Тип {filters.types.length}/3 ▼</label>
+          <div className={styles.checkboxGroup}>
+            {["Тип 1", "Тип 2", "Тип 3"].map((type) => (
+              <label key={type}>
+                <input
+                  type="checkbox"
+                  checked={filters.types.includes(type)}
+                  onChange={(e) => {
+                    const newTypes = e.target.checked
+                      ? [...filters.types, type]
+                      : filters.types.filter(t => t !== type);
+                    handleFilterChange("types", newTypes);
+                  }}
+                />
+                {type}
+              </label>
             ))}
           </div>
+        </div>
 
-          <div className={styles.filtersActions}>
-            <Button type="primary" onClick={handleApply}>
-              Применить фильтры
-            </Button>
-            <Button onClick={() => setIsOpen(false)}>
-              Отмена
-            </Button>
+        {/* Статус */}
+        <div className={styles.filterGroup}>
+          <label>Статус {filters.statuses.length}/3 ▼</label>
+          <div className={styles.checkboxGroup}>
+            {["Статус 1", "Статус 2", "Статус 3"].map((status) => (
+              <label key={status}>
+                <input
+                  type="checkbox"
+                  checked={filters.statuses.includes(status)}
+                  onChange={(e) => {
+                    const newStatuses = e.target.checked
+                      ? [...filters.statuses, status]
+                      : filters.statuses.filter(s => s !== status);
+                    handleFilterChange("statuses", newStatuses);
+                  }}
+                />
+                {status}
+              </label>
+            ))}
           </div>
         </div>
-      </Modal>
-    </div>
+
+        {/* Вид страхования */}
+        <div className={styles.filterGroup}>
+          <label>Вид страхования {filters.insuranceTypes.length}/3 ▼</label>
+          <div className={styles.checkboxGroup}>
+            {["Вид 1", "Вид 2", "Вид 3"].map((insuranceType) => (
+              <label key={insuranceType}>
+                <input
+                  type="checkbox"
+                  checked={filters.insuranceTypes.includes(insuranceType)}
+                  onChange={(e) => {
+                    const newInsuranceTypes = e.target.checked
+                      ? [...filters.insuranceTypes, insuranceType]
+                      : filters.insuranceTypes.filter(it => it !== insuranceType);
+                    handleFilterChange("insuranceTypes", newInsuranceTypes);
+                  }}
+                />
+                {insuranceType}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* ФИО клиента */}
+        <div className={styles.filterGroup}>
+          <label>ФИО клиента</label>
+          <input
+            type="text"
+            placeholder="Введите ФИО"
+            value={filters.clientName || ""}
+            onChange={(e) => handleFilterChange("clientName", e.target.value)}
+          />
+        </div>
+      </div>
+    </FiltersModal>
   );
 };
 
 
-export const ActsArchiverable: FC = () => {
-  const { handleTableStateChange, filters, pagination, sorter } = useTableState<TableDeal>();
-  const { 
-    filters: currentFilters, 
-    handleFilterChange, 
-    handleResetFilters 
-  } = useTableFilters<TableDeal, ActFilterDto>();
-
-  const { entities, isLoading, error, count, handleLoadEntities } = useEntityTable<
-    TableDeal,
-    ActDto
-  >({
-    entityGetter: async (filters, sorter, pagination) => {
-      return api.act_methods.getActs({
-        ...mapSorterToSorterDto(sorter),
-        ...pagination,
-        filters: mapFiltersToFilterDto(filters, FILTER_MAPPER),
-      });
-    },
-    entityMapper: mapDealsDtoToColumnDeals,
-    filters: currentFilters, // Используем фильтры из хука
-    sorter,
-    pagination,
+// Обновленный ActivitiesPageMobile
+export const ActivitiesPageMobile: FC = () => {
+  const { push } = userToast();
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [currentFilters, setCurrentFilters] = useState<ActivityFiltersData>({
+    types: [],
+    statuses: [],
+    insuranceTypes: [],
   });
 
-  // Конфигурация фильтров для архива актов
-  const filterConfig = [
-    {
-      key: 'deal_number',
-      label: 'Номер сделки',
-      type: 'text' as const,
-      placeholder: 'Введите номер сделки',
-    },
-    {
-      key: 'client_name', 
-      label: 'ФИО клиента',
-      type: 'text' as const,
-      placeholder: 'Введите ФИО клиента',
-    },
-    {
-      key: 'completion_date',
-      label: 'Дата окончания',
-      type: 'date' as const,
-      placeholder: 'Выберите дату',
-    },
-    {
-      key: 'act_type',
-      label: 'Тип акта',
-      type: 'multiselect' as const,
-      options: [
-        { label: 'Посещение ТП', value: 'visit' },
-        { label: 'Звонок клиенту', value: 'call' },
-        { label: 'Встреча', value: 'meeting' },
-      ],
-    },
-    {
-      key: 'status',
-      label: 'Статус',
-      type: 'multiselect' as const,
-      options: [
-        { label: 'Выполнено', value: 'completed' },
-        { label: 'В работе', value: 'in_progress' },
-        { label: 'Отменено', value: 'cancelled' },
-      ],
-    },
-  ];
+  const {
+    data: activities,
+    fetchNextPage,
+    isFetchingNextPage,
+    hasNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["activities.mobile", currentFilters], // Добавляем фильтры в queryKey
+    queryFn: (meta) => fetchActivities(meta.pageParam, currentFilters),
+    initialPageParam: 1,
+    getNextPageParam: (result) => result.next,
+    select: (result) => result.pages.flatMap((page) => page.data) || [],
+  });
+
+  // Функция для применения фильтров
+  const handleApplyFilters = (filters: ActivityFiltersData) => {
+    setCurrentFilters(filters);
+    // Query автоматически перезапустится из-за изменения queryKey
+  };
+
+  // Обновляем функцию fetchActivities для поддержки фильтров
+  async function fetchActivities(
+    pageParam: number, 
+    filters: ActivityFiltersData
+  ): Promise<PageResp> {
+    const res = await getActivitiesWithFilters({
+      page: pageParam,
+      page_size: PAGE_SIZE,
+      ...filters, // передаем фильтры в API
+    });
+    
+    const urlObj = new URL(res.next ? res.next : "");
+    const urlParams = new URLSearchParams(urlObj.search).get("page");
+    const next = Number(urlParams) ? Number(urlParams) : undefined;
+    
+    return { data: res.results, next };
+  }
+
+  // ... остальной код виртуализации ...
 
   return (
-    <div className={styles.container}>
-      {/* Компонент фильтров */}
-      <TableFilters
-        filters={currentFilters}
-        filterConfig={filterConfig}
-        onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
+    <>
+      {/* Кнопка для открытия фильтров */}
+      <button 
+        className={styles.filtersButton}
+        onClick={() => setIsFiltersOpen(true)}
+      >
+        Фильтры
+      </button>
+
+      {/* Модалка фильтров */}
+      <ActivityFilters
+        isOpen={isFiltersOpen}
+        onClose={() => setIsFiltersOpen(false)}
+        onApplyFilters={handleApplyFilters}
+        initialFilters={currentFilters}
       />
-      
-      <EntityTable<TableDeal>
-        className={styles.table}
-        columns={getColumns()}
-        dataTestId={"act-table-archive"}
-        rowKey={(record) => record.origin.id}
-        pagination={pagination}
-        dataSource={entities}
-        loading={isLoading}
-        onChange={handleTableStateChange}
-      />
-    </div>
+
+      {/* Остальной JSX */}
+      <div className={styles.wrap} style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => (
+          // ... ваш существующий код для рендеринга элементов ...
+        ))}
+      </div>
+    </>
   );
-};
-
-
-export const useTableFilters = <TableRow, FilterDto>() => {
-  const { handleTableStateChange, filters, pagination, sorter } = useTableState<TableRow>();
-  
-  // Обработчик изменения фильтров
-  const handleFilterChange = (newFilters: Record<string, any>) => {
-    handleTableStateChange(
-      {
-        ...pagination,
-        current: 1, // Всегда сбрасываем на первую страницу при фильтрации
-      },
-      sorter,
-      newFilters,
-      { action: 'filter' }
-    );
-  };
-
-  // Обработчик изменения отдельного фильтра
-  const handleSingleFilterChange = (key: string, value: any) => {
-    handleFilterChange({
-      ...filters,
-      [key]: value,
-    });
-  };
-
-  // Сброс всех фильтров
-  const handleResetFilters = () => {
-    handleTableStateChange(
-      {
-        ...pagination,
-        current: 1,
-      },
-      sorter,
-      {}, // Очищаем все фильтры
-      { action: 'filter' }
-    );
-  };
-
-  return {
-    filters,
-    handleFilterChange,
-    handleSingleFilterChange,
-    handleResetFilters,
-  };
 };
 
 
