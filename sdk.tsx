@@ -1,98 +1,133 @@
-import styles from "./activity_filters.module.css";
-import { ControlledDatepickerField } from "@/5_shared/ui";
-import { FC } from "react";
-import { useForm } from "react-hook-form";
+// mapper.ts
+import { ActivityDto } from "@/5_shared/api";
+import { ActivityFiltersFormSchema } from "./schema";
+import { referencesService } from "@/5_shared/reference";
 
-type ActivityFiltersData = {
-  deadline?: Date;
-  client?: string;
-  activity_type?: string;
-  activity_status?: string;
-  [key: string]: any;
+const activityStatus = referencesService.getDictSet("activity_status");
+const activityType = referencesService.getDictSet("activity_type");
+
+export const activityTypesOptions = activityType.map((type) => ({ 
+  label: type.name, 
+  value: type.id.toString(),
+}));
+
+export const activityStatusOptions = activityStatus.map((type) => ({ 
+  label: type.name, 
+  value: type.id.toString(),
+}));
+
+export const mapDtoToSchema = (activity: ActivityDto): ActivityFiltersFormSchema => {
+  return {
+    deal_end_date: activity.deal_end_date ? new Date(activity.deal_end_date) : undefined,
+    activity_type: activity.activity_type ? [{ 
+      value: activity.activity_type.id.toString(), 
+      label: activity.activity_type.name 
+    }] : undefined,
+    activity_status: activity.activity_status ? [{ 
+      value: activity.activity_status.id.toString(), 
+      label: activity.activity_status.name 
+    }] : undefined,
+    client: activity.client || undefined,
+  };
 };
+
+export const mapSchemaToDto = (schema: ActivityFiltersFormSchema): Record<string, any> => {
+  return {
+    client: schema.client,
+    activity_types: schema.activity_type?.map(item => item.value),
+    activity_statuses: schema.activity_status?.map(item => item.value),
+    deal_end_date: schema.deal_end_date?.toISOString(),
+  };
+};
+
+
+
+// activity_filters.tsx
+import { ModalFilters } from "@/5_shared/ui/_mobile/modal_filters/modal_filters";
+import styles from "./activity_filters.module.css";
+import {
+  ControlledDatePickerField,
+  ControlledInputField,
+  ControlledMultiselect,
+} from "@/5_shared/ui";
+import { FC, useState } from "react";
+import { Button } from "@sg/uikit";
+import { useForm } from "react-hook-form";
+import { ActivityFiltersFormSchema } from "./schema";
+import { activityStatusOptions, activityTypesOptions } from "./mapper";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 type ActivityFiltersProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  onApplyFilters: (filters: ActivityFiltersData) => void;
-  initialFilters?: ActivityFiltersData;
+  onApplyFilters: (filters: any) => void;
+  initialFilters?: any;
 };
 
-// Предполагаем, что ModalFilters уже существует и импортирован
-const ModalFilters: FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  onApplyFilters: () => void;
-  children: React.ReactNode;
-}> = ({ isOpen, onClose, onApplyFilters, children }) => {
-  if (!isOpen) return null;
-  
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        {children}
-        <div className="modal-actions">
-          <button onClick={onClose}>Отмена</button>
-          <button onClick={onApplyFilters}>Применить</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+export const ActivityFilters: FC<ActivityFiltersProps> = ({ onApplyFilters, initialFilters }) => {
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
-export const ActivityFilters: FC<ActivityFiltersProps> = ({ 
-  isOpen, 
-  onClose, 
-  onApplyFilters,
-  initialFilters 
-}) => {
-  const { control, handleSubmit, reset } = useForm<ActivityFiltersData>({
+  const form = useForm<ActivityFiltersFormSchema>({
+    mode: "onSubmit",
+    reValidateMode: "onSubmit",
+    resolver: zodResolver(ActivityFiltersFormSchema),
     defaultValues: initialFilters,
   });
 
-  const handleApply = (data: ActivityFiltersData) => {
-    const processedFilters: ActivityFiltersData = {};
-    
-    if (data.deadline) {
-      processedFilters.deadline = data.deadline;
-    }
-    if (data.client) {
-      processedFilters.client = data.client;
-    }
-    
-    onApplyFilters(processedFilters);
+  const handleApplyFilters = (data: ActivityFiltersFormSchema) => {
+    onApplyFilters(data);
+    setIsFilterModalOpen(false);
   };
 
   const handleReset = () => {
-    reset();
+    form.reset();
     onApplyFilters({});
-    onClose();
+    setIsFilterModalOpen(false);
   };
 
   return (
-    <ModalFilters 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      onApplyFilters={handleSubmit(handleApply)}
-    >
-      <div className={styles.container}>
-        <ControlledDatepickerField
-          label="Крайний срок"
-          control={control}
-          name="deadline"
-          minDate={new Date()}
-          size="xl"
-        />
-        
-        {/* Добавьте другие поля фильтров по необходимости */}
-        
-        <div style={{ marginTop: '16px' }}>
-          <Button onClick={handleReset} variant="secondary">
-            Сбросить
-          </Button>
-        </div>
-      </div>
-    </ModalFilters>
+    <>
+      <Button onClick={() => setIsFilterModalOpen(true)} variant="secondary">
+        Фильтры
+      </Button>
+
+      <ModalFilters
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        onApply={form.handleSubmit(handleApplyFilters)}
+        onReset={handleReset}
+      >
+        <form className={styles.form}>
+          <ControlledInputField
+            control={form.control}
+            name="client"
+            label="Клиент"
+            placeholder="Поиск по клиенту"
+          />
+          
+          <ControlledMultiselect
+            control={form.control}
+            name="activity_type"
+            label="Тип активности"
+            options={activityTypesOptions}
+            placeholder="Выберите тип"
+          />
+          
+          <ControlledMultiselect
+            control={form.control}
+            name="activity_status"
+            label="Статус активности"
+            options={activityStatusOptions}
+            placeholder="Выберите статус"
+          />
+          
+          <ControlledDatePickerField
+            control={form.control}
+            name="deal_end_date"
+            label="Дата окончания сделки"
+            placeholder="Выберите дату"
+          />
+        </form>
+      </ModalFilters>
+    </>
   );
 };
 
@@ -101,20 +136,26 @@ export const ActivityFilters: FC<ActivityFiltersProps> = ({
 
 
 
-import { ActivityCardMobile } from "@/3_features/mobile/activity/activity_card/activity_card";
+// activities.tsx
 import { getActivitiesByFilters } from "@/4_entities/activity";
-import { useTableState, useIntersection } from "@/5_shared/hooks";
-import { Button, Spinner, useToast } from "@sg/ulkit";
+import { useState } from "@/5_shared/hooks";
+import { Spinner, useToast } from "@sg/uikit";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { FC, useState, useRef, useCallback } from "react";
 import styles from "./activities.module.css";
-import { ActivityFilters } from "@/3_features/mobile/activity/activity_filters/activity_filters";
 import { useUser } from "@/4_entities/profile";
-import { mapFiltersToFilterDto, mapSorterToSorterDto } from "@/5_shared/ui";
+import {
+  Filters,
+  mapFiltersToFilterDto,
+  mapSorterToSorterDto,
+  Pagination,
+  Sorter,
+} from "@/5_shared/ui";
 import { ActivityDto, ReferenceItem } from "@/5_shared/api";
+import { ActivityFilters } from "@/3_features/mobile/activity/activity_filters/activity_filters";
+import { ActivityCardMobile } from "@/3_features/mobile/activity/activity_card/activity_card";
 
-type TableActivity = {
+type FilterActivity = {
   id: string;
   client: string;
   activity_type: string;
@@ -127,13 +168,7 @@ type TableActivity = {
   deal_end_date: string;
 };
 
-type ActivitiesConfig = {
-  PAGE_SIZE: number;
-  ESTIMATE_SIZE: number;
-  PREFETCH_THRESHOLD: number;
-};
-
-const ACTIVITIES_CONFIG: ActivitiesConfig = {
+const ACTIVITIES_CONFIG = {
   PAGE_SIZE: 20,
   ESTIMATE_SIZE: 150,
   PREFETCH_THRESHOLD: 5,
@@ -152,45 +187,32 @@ const FILTER_MAPPER = {
   client: "search",
 };
 
-type FilterParams = Record<string, any>;
-type PaginationParams = Record<string, any>;
-type SorterParams = Record<string, any>;
-
-type ActivitiesResponse = {
-  results: TableActivity[];
-  next: string | null;
-};
-
-type ActivitiesPageData = {
-  data: TableActivity[];
-  next: number | undefined;
-};
-
-const getInitialFilters = (
-  business_segment: number | null,
-  canScope: boolean
-): FilterParams =>
+const getInitialFilters = (business_segment: number | null, canScope: boolean): Record<string, string> =>
   canScope ? { segment: business_segment?.toString() || "", scope: "my" } : {};
 
 type ActivitiesPageMobileProps = {
   canScope?: boolean;
 };
 
-export const ActivitiesPageMobile: FC<ActivitiesPageMobileProps> = ({ canScope = false }) => {
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+export const ActivitiesPageMobile: React.FC<ActivitiesPageMobileProps> = ({ canScope = false }) => {
   const user = useUser();
   const { push } = useToast();
-  const cursorRef = useRef<HTMLDivElement | null>(null);
 
-  const { pagination, filters, sorter, handleTableStateChange } = useTableState<TableActivity>(
-    getInitialFilters(user?.business_segment || null, canScope)
-  );
+  const [pagination, setPagination] = useState({ page: 1, page_size: ACTIVITIES_CONFIG.PAGE_SIZE });
+  const [filters, setFilters] = useState<Filters>(getInitialFilters(user.business_segment, canScope));
+  const [sorter, setSorter] = useState<Sorter<FilterActivity>>({ order: "descend", column: "id" });
 
-  const fetchActivities = useCallback(async (
-    paginationParams: PaginationParams,
-    filterParams: FilterParams,
-    sorterParams: SorterParams
-  ): Promise<ActivitiesPageData> => {
+  const handleTableStateChange = (newPagination: Pagination, newFilters: Filters, newSorter: Sorter<FilterActivity>) => {
+    setPagination(newPagination);
+    setFilters(newFilters);
+    setSorter(newSorter);
+  };
+
+  const fetchActivities = async (
+    paginationParams: Pagination,
+    filterParams: Filters,
+    sorterParams: Sorter<FilterActivity>,
+  ) => {
     try {
       const res = await getActivitiesByFilters({
         ...mapSorterToSorterDto(sorterParams, SORTER_MAPPER),
@@ -198,11 +220,11 @@ export const ActivitiesPageMobile: FC<ActivitiesPageMobileProps> = ({ canScope =
         page: paginationParams.page || 1,
         filters: mapFiltersToFilterDto(filterParams, FILTER_MAPPER),
       });
-
+      
       const nextPage = res.next
         ? Number(new URLSearchParams(new URL(res.next).search).get("page"))
         : undefined;
-
+      
       return {
         data: res.results || [],
         next: nextPage && !isNaN(nextPage) ? nextPage : undefined,
@@ -215,17 +237,16 @@ export const ActivitiesPageMobile: FC<ActivitiesPageMobileProps> = ({ canScope =
       console.error(error);
       throw error;
     }
-  }, [push]);
+  };
 
   const {
     data: activitiesData,
     fetchNextPage,
     isFetchingNextPage,
     hasNextPage,
-    isLoading,
   } = useInfiniteQuery({
     queryKey: ["activities-mobile", filters, sorter],
-    queryFn: ({ pageParam = 1 }) => 
+    queryFn: ({ pageParam = 1 }) =>
       fetchActivities({ ...pagination, page: pageParam }, filters, sorter),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.next,
@@ -238,10 +259,10 @@ export const ActivitiesPageMobile: FC<ActivitiesPageMobileProps> = ({ canScope =
 
   const flatActivitiesData = activitiesData?.flatData || [];
 
-  const handleApplyFilters = useCallback((newFilters: FilterParams) => {
-    console.log("Applying filters:", newFilters);
-    handleTableStateChange({}, newFilters, {});
-  }, [handleTableStateChange]);
+  const handleApplyFilters = (filterParams: Filters) => {
+    setFilters(filterParams);
+    setPagination({ ...pagination, page: 1 });
+  };
 
   const virtualizer = useWindowVirtualizer({
     count: hasNextPage ? flatActivitiesData.length + 1 : flatActivitiesData.length,
@@ -249,46 +270,33 @@ export const ActivitiesPageMobile: FC<ActivitiesPageMobileProps> = ({ canScope =
     overscan: 5,
   });
 
-  useIntersection({
-    element: cursorRef,
-    onIntersect: () => {
-      if (!isFetchingNextPage && hasNextPage) {
-        fetchNextPage().catch((error) => {
-          console.error("Failed to fetch next page:", error);
-          push({ title: "Ошибка загрузки следующей страницы", type: "error" });
-        });
+  const { ref: cursorRef } = useIntersection({
+    threshold: 0.5,
+    onChange: (isIntersecting) => {
+      if (isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage().catch(() =>
+          push({ title: "Ошибка загрузки следующей страницы", type: "error" })
+        );
       }
-    },
-    options: {
-      threshold: 0.1,
     },
   });
 
-  if (isLoading) {
-    return <Spinner size={48} />;
-  }
-
   return (
-    <>
+    <div className={styles.container}>
       <div className={styles.header}>
-        <Button onClick={() => setIsFiltersOpen(true)} variant="secondary">
-          Фильтры
-        </Button>
+        <ActivityFilters 
+          onApplyFilters={handleApplyFilters}
+          initialFilters={filters}
+        />
       </div>
 
-      <ActivityFilters
-        isOpen={isFiltersOpen}
-        onClose={() => setIsFiltersOpen(false)}
-        onApplyFilters={handleApplyFilters}
-        initialFilters={filters}
-      />
-
       <div className={styles.wrap}>
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const isLoaded = virtualItem.index < flatActivitiesData.length;
             const activity = flatActivitiesData[virtualItem.index];
-            const isObserverItem = virtualItem.index >= flatActivitiesData.length - 1;
+            const isObserverItem =
+              flatActivitiesData.length - ACTIVITIES_CONFIG.PREFETCH_THRESHOLD === virtualItem.index;
 
             return (
               <div
@@ -297,36 +305,35 @@ export const ActivitiesPageMobile: FC<ActivitiesPageMobileProps> = ({ canScope =
                 className={styles.item}
                 ref={(el) => {
                   virtualizer.measureElement(el);
-                  if (isObserverItem) {
-                    cursorRef.current = el;
+                  if (isObserverItem && !isFetchingNextPage) {
+                    cursorRef(el);
                   }
                 }}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 0,
                   left: 0,
-                  width: '100%',
+                  width: "100%",
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
                 {isLoaded ? (
                   <ActivityCardMobile key={activity.id} activity={activity} />
                 ) : (
-                  <div style={{ height: ACTIVITIES_CONFIG.ESTIMATE_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Spinner size={32} />
-                  </div>
+                  <Spinner size={48} />
                 )}
               </div>
             );
           })}
         </div>
-        
-        {isFetchingNextPage && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
-            <Spinner size={32} />
-          </div>
-        )}
       </div>
-    </>
+
+      {isFetchingNextPage && (
+        <div className={styles.loading}>
+          <Spinner size={32} />
+        </div>
+      )}
+    </div>
   );
 };
+
