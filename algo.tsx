@@ -1,41 +1,13 @@
-import { useToast } from "@sg/uikit";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, PatchSalesPointDto, SalesPointDto } from "@/5_shared/api";
-import { salesPointQueryOptions } from "./query_options";
+// Найти все элементы с вертикальным скроллом
+document.querySelectorAll('*').forEach(el => {
+    if (el.scrollHeight > el.clientHeight) {
+        console.log('Элемент с вертикальным скроллом:', el);
+    }
+});
 
-export function useUpdateSalesPoint() {
-    const queryClient = useQueryClient();
-    const { push } = useToast();
-
-    const { mutate, isPending, data } = useMutation({
-        mutationFn: ({ id, salesPoint }: { id: string; salesPoint: Partial<PatchSalesPointDto> }) => 
-            api.sales_point.patchSalesPointById(id, salesPoint),
-        async onSuccess() {
-            await queryClient.invalidateQueries({
-                queryKey: [salesPointQueryOptions.baseKey, "point"],
-            });
-        },
-        onError(error: Error) {
-            console.error(error);
-            push({ type: "error", title: "Ошибка при обновлении точки продаж" });
-        },
-    });
-
-    const handleUpdateSalesPoint = (
-        id: string,
-        salesPoint: Partial<PatchSalesPointDto>,
-        options?: {
-            onSuccess?: (data: SalesPointDto, variables: Partial<PatchSalesPointDto>, context: unknown) => void;
-        }
-    ) => {
-        mutate({ id, salesPoint }, {
-            onSuccess: options?.onSuccess,
-        });
-    };
-
-    return {
-        handleUpdateSalesPoint,
-        isPendingDeal: isPending,
-        dataDeal: data,
-    };
-}
+// Найти все элементы с горизонтальным скроллом
+document.querySelectorAll('*').forEach(el => {
+    if (el.scrollWidth > el.clientWidth) {
+        console.log('Элемент с горизонтальным скроллом:', el);
+    }
+});
