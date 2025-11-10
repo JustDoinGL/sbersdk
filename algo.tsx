@@ -1,13 +1,26 @@
-// Найти все элементы с вертикальным скроллом
-document.querySelectorAll('*').forEach(el => {
-    if (el.scrollHeight > el.clientHeight) {
-        console.log('Элемент с вертикальным скроллом:', el);
-    }
-});
+export const mapDtoToSchema = (filters: Filters): DealFiltersFormSchema => {
+    const dealTypeChoices = referencesService.getDictSet("deal_type_choices");
+    const insuranceTypeChoices = referencesService.getDictSet("insurance_type_choices");
+    const dealStageChoices = referencesService.getDictSet("deal_stage");
 
-// Найти все элементы с горизонтальным скроллом
-document.querySelectorAll('*').forEach(el => {
-    if (el.scrollWidth > el.clientWidth) {
-        console.log('Элемент с горизонтальным скроллом:', el);
-    }
-});
+    return {
+        deal_type: filters?.deal_type ? {
+            value: filters.deal_type.trim(),
+            label: dealTypeChoices.find(type => type.id.toString() === filters.deal_type.trim())?.name || ''
+        } : undefined,
+
+        insurance: filters?.insurance?.split(",").map((id) => {
+            const found = insuranceTypeChoices.find((type) => type.id.toString() === id.trim());
+            return { label: found?.name || '', value: found?.id.toString() || id.trim() };
+        }),
+
+        stage: filters?.stage?.split(",").map((id) => {
+            const found = dealStageChoices.find((status) => status.id.toString() === id.trim());
+            return { label: found?.name || '', value: found?.id.toString() || id.trim() };
+        }),
+
+        end_date: filters?.end_date
+            ? filters.end_date.split(",").map((datestr) => new Date(datestr.trim()))
+            : undefined,
+    };
+};
