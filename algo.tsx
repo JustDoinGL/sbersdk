@@ -1,86 +1,92 @@
-// types.ts
-export type DictMap = Record<number, { name: string }>;
+import { api, References } from "@/5_shared/api";
+import { LONG_DASH } from "../consts";
 
-export type RefKeys = string;
-
-export const LONG_DASH = '—';
-
-
-// referencesService.ts
-type Subscriber = () => void;
+type RefKeys = keyof References;
+type DictMap = Record<number, References[RefKeys][number]>;
 
 class ReferencesService {
-  private subscribers = new Set<Subscriber>();
-  private isInitialized = false;
-  private initializationError: Error | null = null;
+  private subscribers = new Set<() => void>();
+  private state = { 
+    isInitialized: false, 
+    error: null as Error | null 
+  };
 
-  private emitChange() {
-    this.subscribers.forEach(subscriber => subscriber());
-  }
+  // Методы для useSyncExternalStore
+  subscribe = (callback: () => void) => {
+    this.subscribers.add(callback);
+    return () => this.subscribers.delete(callback);
+  };
 
-  subscribe(subscriber: Subscriber) {
-    this.subscribers.add(subscriber);
-    return () => this.subscribers.delete(subscriber);
-  }
+  getSnapshot = () => this.state;
 
-  getSnapshot() {
-    return {
-      isInitialized: this.isInitialized,
-      error: this.initializationError
-    };
-  }
+  private notify = () => {
+    this.subscribers.forEach(callback => callback());
+  };
 
-  async init() {
-    if (this.isInitialized) return;
+  public async init() {
+    if (this.state.isInitialized) return;
 
     try {
-      // Здесь должна быть логика инициализации
-      // Например, загрузка данных с сервера
-      await this.loadReferences();
-      
-      this.isInitialized = true;
-      this.initializationError = null;
+      const response = await api.reference_methods.getReferences();
+      const keys = Object.keys(response) as RefKeys[];
+
+      keys.forEach((key) => {
+        const dictMap: DictMap = response[key].reduce((acc, rec) => {
+          acc[rec.id] = rec;
+          return acc;
+        }, {} as DictMap);
+        
+        sessionStorage.setItem(key, JSON.stringify(dictMap));
+      });
+
+      this.state = { isInitialized: true, error: null };
     } catch (error) {
-      this.initializationError = error instanceof Error ? error : new Error('Unknown error');
-      console.error('Failed to initialize services:', error);
+      console.error("Failed to fetch References:", error);
+      this.state = { 
+        isInitialized: false, 
+        error: error instanceof Error ? error : new Error('Unknown error') 
+      };
     } finally {
-      this.emitChange();
+      this.notify();
     }
   }
 
-  private async loadReferences() {
-    // Загрузка reference данных
-    // Пример: await api.loadReferences();
-  }
-
-  // Методы для работы с данными
-  getDictSet(key: RefKeys) {
-    if (!this.isInitialized) {
-      console.warn('Service not initialized');
-      return [];
-    }
-
+  public getDictMap(key: RefKeys): DictMap | null {
     const stringifyDict = sessionStorage.getItem(key);
-    if (!stringifyDict) return [];
 
-    try {
-      const map: DictMap = JSON.parse(stringifyDict);
-      return Object.values(map);
-    } catch {
-      console.warn(`Error parsing dictionary for key: ${key}`);
-      return [];
+    if (stringifyDict) {
+      try {
+        return JSON.parse(stringifyDict);
+      } catch {
+        return null;
+      }
     }
+    return null;
   }
 
-  getReferenceLabel(key: RefKeys, value?: number | null): string {
+  public getDictSet(key: RefKeys): References[RefKeys] {
+    const stringifyDict = sessionStorage.getItem(key);
+
+    if (stringifyDict) {
+      try {
+        const map: DictMap = JSON.parse(stringifyDict);
+        return Object.values(map);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  public getReferenceLabel(key: RefKeys, value?: number | null): string {
     if (!value) {
-      console.warn('No value provided for reference');
+      console.warn("Не передан ключ для reference.");
       return LONG_DASH;
     }
 
     const stringifyDict = sessionStorage.getItem(key);
     if (!stringifyDict) {
-      console.warn(`Unknown key for reference: ${key}`);
+      console.warn("Неизвестный ключ для reference: ", key);
       return LONG_DASH;
     }
 
@@ -88,20 +94,20 @@ class ReferencesService {
       const map: DictMap = JSON.parse(stringifyDict);
       return map[value]?.name || LONG_DASH;
     } catch {
-      console.warn(`Error parsing dictionary ${key} for value: ${value}`);
+      console.warn("Ошибка при JSON.parse словаря", key, "по ключу", value);
       return LONG_DASH;
     }
   }
 
-  getReferenceValue(key: RefKeys, value?: number | null) {
+  public getReferenceValue(key: RefKeys, value?: number | null) {
     if (!value) {
-      console.warn('No value provided for reference');
+      console.warn("Не передан ключ для reference.");
       return null;
     }
 
     const stringifyDict = sessionStorage.getItem(key);
     if (!stringifyDict) {
-      console.warn(`Unknown key for reference: ${key}`);
+      console.warn("Неизвестный ключ для reference: ", key);
       return null;
     }
 
@@ -109,96 +115,10 @@ class ReferencesService {
       const map: DictMap = JSON.parse(stringifyDict);
       return map[value] || null;
     } catch {
-      console.warn(`Error parsing dictionary ${key} for value: ${value}`);
+      console.warn("Ошибка при JSON.parse словаря", key, "по ключу", value);
       return null;
     }
   }
 }
 
 export const referencesService = new ReferencesService();
-
-
-
-// hooks/useReferencesStore.ts
-import { useSyncExternalStore } from 'react';
-import { referencesService } from '../referencesService';
-
-export const useReferencesStore = () => {
-  const state = useSyncExternalStore(
-    referencesService.subscribe.bind(referencesService),
-    referencesService.getSnapshot.bind(referencesService)
-  );
-
-  return {
-    ...state,
-    getDictSet: referencesService.getDictSet.bind(referencesService),
-    getReferenceLabel: referencesService.getReferenceLabel.bind(referencesService),
-    getReferenceValue: referencesService.getReferenceValue.bind(referencesService),
-    init: referencesService.init.bind(referencesService)
-  };
-};
-
-
-
-
-// ServiceProvider.tsx
-import { FC, ReactNode, useEffect } from 'react';
-import { Alert, Spinner } from '@sg/UIkit';
-import { useReferencesStore } from '../hooks/useReferencesStore';
-
-const LoadingState: FC = () => (
-  <div
-    style={{
-      display: 'flex',
-      height: '100vh',
-      width: '100vw',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <Spinner size={64} />
-  </div>
-);
-
-const ErrorState: FC<{ error: Error }> = ({ error }) => (
-  <div
-    style={{
-      display: 'flex',
-      height: '100vh',
-      width: '100vw',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <Alert
-      type="error"
-      title="Ошибка загрузки сервисов"
-      description={error.message}
-    />
-  </div>
-);
-
-export const ServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const { isInitialized, error, init } = useReferencesStore();
-
-  useEffect(() => {
-    init();
-  }, [init]);
-
-  if (error) {
-    return <ErrorState error={error} />;
-  }
-
-  if (!isInitialized) {
-    return <LoadingState />;
-  }
-
-  return <>{children}</>;
-};
-
-
-
-
-
-
-
