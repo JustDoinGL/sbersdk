@@ -1,37 +1,17 @@
-// Просто объект с маппингом
-export const EntityTypes = {
-  SALES_POINT: {
-    id: 1,
-    shortName: "SP"
-  },
-  SP_UNIT: {
-    id: 2,
-    shortName: "SPU" 
-  },
-  BANK_INSURANCE_SALES_POINT: {
-    id: 3,
-    shortName: "BISP"
-  }
-} as const;
+const mapSchemaToDto = (schema: DealFiltersFormSchema): Record<string, string | string[] | undefined> => {
+  const getEndDate = (): string[] | undefined => {
+    if (!schema.end_date?.[0] || !schema.end_date?.[1]) {
+      return undefined;
+    }
+    
+    return schema.end_date.map(date => dateUtils.getDtoDate(date!));
+  };
 
-export type EntityType = keyof typeof EntityTypes;
-
-// В пропсах используешь строковый ключ:
-type ComponentProps = {
-  entityType: EntityType;
+  return {
+    manager: schema.manager ?? undefined,
+    deal_type: schema.deal_type?.value ?? undefined,
+    stage: schema.stage?.map(item => item.value).filter(Boolean).join(",") ?? undefined,
+    insurance: schema.insurance?.map(item => item.value).filter(Boolean).join(",") ?? undefined,
+    end_date: getEndDate(), // Теперь это вызов функции, а не сама функция
+  };
 };
-
-const Component: React.FC<ComponentProps> = ({ entityType }) => {
-  const entity = EntityTypes[entityType];
-  // entity.id - цифра
-  // entity.shortName - короткое название
-  
-  return (
-    <div>
-      ID: {entity.id}, Name: {entity.shortName}
-    </div>
-  );
-};
-
-// Использование:
-<Component entityType="SALES_POINT" />
