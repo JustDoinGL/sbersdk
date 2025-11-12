@@ -1,44 +1,77 @@
-import React, { useRef, useEffect } from 'react';
 
-export const ModalFilters: React.FC<ModalFiltersProps> = (props) => {
-  const modalRef = useRef(null);
-  const { isOpen, onClose, onApply, children, onReset } = props;
+import { api } from "@/5_shared/api";
+import { Multiselect, MultiselectProps, useToast, type Option } from "@sg/utkit";
+import { useRef, useState } from "react";
 
-  useEffect(() => {
-    if (isOpen && modalRef.current) {
-      // Ищем кнопку по типу или другим атрибутам
-      const button = modalRef.current.querySelector('button[type="submit"]') || 
-                    modalRef.current.querySelector('button') ||
-                    modalRef.current.querySelector('[data-button-type="apply"]');
-      
-      if (button) {
-        // Удаляем кнопку
-        button.remove();
-        // Или скрываем
-        // button.style.display = 'none';
-        // button.style.visibility = 'hidden';
-        // button.hidden = true;
-      }
-    }
-  }, [isOpen]);
+type Props = {
+    unitId: string;
+    preview: Record<string, string>;
+} & Omit<MultiselectProps<string>, "options">;
 
-  if (!isOpen) {
-    return null;
-  }
+export const SalesPointMultiselectManager: React.FC<Props> = ({ 
+    unitId, 
+    preview, 
+    ...rest 
+}) => {
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const searchRef = useRef<string>("");
+    const [managerOptions, setManagerOptions] = useState<Option<string>[]>([]);
+    const [error, setError] = useState(false);
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      hasIconClose={false}
-      height="full-height"
-      ref={modalRef}
-    >
-      <form className={styles.container} onSubmit={onApply}>
-        <div className={styles.header}>
-          {children}
-        </div>
-      </form>
-    </Modal>
-  );
+    const { push } = useToast();
+
+    const fetchManagers = async (search: string) => {
+        if (searchRef.current === search) {
+            return;
+        }
+
+        searchRef.current = search;
+        
+        try {
+            const response = await api.profile_methods.getProfileByQuery({
+                query: search || " ",
+                unitId: unitId // Добавляем unitId в запрос
+            });
+            
+            const options = response.results.map((manager) => ({
+                label: `${manager.last_name} ${manager.first_name} ${manager.patronymic || ""}`.trim(),
+                value: manager.id.toString(),
+            }));
+            
+            setManagerOptions(options);
+        } catch (e) {
+            console.error("Ошибка при загрузке менеджеров:", e);
+            setError(true);
+            push({
+                title: "Ошибка при загрузке списка менеджеров",
+                type: "error",
+            });
+        }
+    };
+
+    const debouncedFetchManagers = (search: string) => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
+        timeoutRef.current = setTimeout(() => {
+            fetchManagers(search);
+        }, 500);
+    };
+
+    const handleFocus = () => {
+        fetchManagers("");
+    };
+
+    return (
+        <Multiselect
+            placeholder="Начните вводить имя менеджера..."
+            onFocus={handleFocus}
+            options={managerOptions}
+            onInputChange={debouncedFetchManagers}
+            selectedItemsDisplayMode="inline"
+            hasError={error}
+            {...rest}
+        />
+    );
 };
