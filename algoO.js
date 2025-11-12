@@ -1,77 +1,37 @@
+// Просто объект с маппингом
+export const EntityTypes = {
+  SALES_POINT: {
+    id: 1,
+    shortName: "SP"
+  },
+  SP_UNIT: {
+    id: 2,
+    shortName: "SPU" 
+  },
+  BANK_INSURANCE_SALES_POINT: {
+    id: 3,
+    shortName: "BISP"
+  }
+} as const;
 
-import { api } from "@/5_shared/api";
-import { Multiselect, MultiselectProps, useToast, type Option } from "@sg/utkit";
-import { useRef, useState } from "react";
+export type EntityType = keyof typeof EntityTypes;
 
-type Props = {
-    unitId: string;
-    preview: Record<string, string>;
-} & Omit<MultiselectProps<string>, "options">;
-
-export const SalesPointMultiselectManager: React.FC<Props> = ({ 
-    unitId, 
-    preview, 
-    ...rest 
-}) => {
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const searchRef = useRef<string>("");
-    const [managerOptions, setManagerOptions] = useState<Option<string>[]>([]);
-    const [error, setError] = useState(false);
-
-    const { push } = useToast();
-
-    const fetchManagers = async (search: string) => {
-        if (searchRef.current === search) {
-            return;
-        }
-
-        searchRef.current = search;
-        
-        try {
-            const response = await api.profile_methods.getProfileByQuery({
-                query: search || " ",
-                unitId: unitId // Добавляем unitId в запрос
-            });
-            
-            const options = response.results.map((manager) => ({
-                label: `${manager.last_name} ${manager.first_name} ${manager.patronymic || ""}`.trim(),
-                value: manager.id.toString(),
-            }));
-            
-            setManagerOptions(options);
-        } catch (e) {
-            console.error("Ошибка при загрузке менеджеров:", e);
-            setError(true);
-            push({
-                title: "Ошибка при загрузке списка менеджеров",
-                type: "error",
-            });
-        }
-    };
-
-    const debouncedFetchManagers = (search: string) => {
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
-
-        timeoutRef.current = setTimeout(() => {
-            fetchManagers(search);
-        }, 500);
-    };
-
-    const handleFocus = () => {
-        fetchManagers("");
-    };
-
-    return (
-        <Multiselect
-            placeholder="Начните вводить имя менеджера..."
-            onFocus={handleFocus}
-            options={managerOptions}
-            onInputChange={debouncedFetchManagers}
-            selectedItemsDisplayMode="inline"
-            hasError={error}
-            {...rest}
-        />
-    );
+// В пропсах используешь строковый ключ:
+type ComponentProps = {
+  entityType: EntityType;
 };
+
+const Component: React.FC<ComponentProps> = ({ entityType }) => {
+  const entity = EntityTypes[entityType];
+  // entity.id - цифра
+  // entity.shortName - короткое название
+  
+  return (
+    <div>
+      ID: {entity.id}, Name: {entity.shortName}
+    </div>
+  );
+};
+
+// Использование:
+<Component entityType="SALES_POINT" />
