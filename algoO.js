@@ -1,17 +1,20 @@
-const mapSchemaToDto = (schema: DealFiltersFormSchema): Record<string, string | string[] | undefined> => {
-  const getEndDate = (): string[] | undefined => {
-    if (!schema.end_date?.[0] || !schema.end_date?.[1]) {
-      return undefined;
+onChange={(e) => {
+    const areDatesEqual = (date1, date2) => {
+        if (!date1 && !date2) return true;
+        if (!date1 || !date2) return false;
+        
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        
+        return d1.getFullYear() === d2.getFullYear() &&
+               d1.getMonth() === d2.getMonth() &&
+               d1.getDate() === d2.getDate();
+    };
+    
+    if (areDatesEqual(field.value, e)) {
+        console.log("Даты одинаковые, пропускаем");
+        return;
     }
     
-    return schema.end_date.map(date => dateUtils.getDtoDate(date!));
-  };
-
-  return {
-    manager: schema.manager ?? undefined,
-    deal_type: schema.deal_type?.value ?? undefined,
-    stage: schema.stage?.map(item => item.value).filter(Boolean).join(",") ?? undefined,
-    insurance: schema.insurance?.map(item => item.value).filter(Boolean).join(",") ?? undefined,
-    end_date: getEndDate(), // Теперь это вызов функции, а не сама функция
-  };
-};
+    field.onChange(e);
+}}
