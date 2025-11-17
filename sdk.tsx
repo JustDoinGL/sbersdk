@@ -1,92 +1,171 @@
-import { ActDto } from "@/5_shared/api";
-import { useUser } from "./useUser"; // предположим, что useUser отсюда
+// hooks/useActStatus.ts
+import { useMemo } from 'react';
+import { useUser } from '@/path/to/your/useUser';
+import { ActDto } from '@/5_shared/api';
 
-// Конфигурация статусов для разных ролей
-const STATUS_CONFIG = {
+// Конфигурация статусов для каждой роли
+export const ACT_STATUS_CONFIG = {
   AGENT: {
-    decline: [2, 4, 6],
-    done: [7, 8],
-    sign: [1, 3, 5],
-    paid: [8],
-    info: "act_status_agent_representation"
+    statusMap: 'act_status_agent_representation',
+    statuses: {
+      decline: [2, 4, 6] as const,
+      done: [7, 8] as const,
+      sign: [1, 3, 5] as const,
+      paid: [8] as const,
+    },
+    allowedStatuses: [1, 3, 5, 7, 8] as const,
   },
   MAG: {
-    decline: [2, 4],
-    done: [7, 8],
-    sign: [1, 3],
-    paid: [8],
-    info: "act_status_mag_representation"
+    statusMap: 'act_status_mag_representation',
+    statuses: {
+      decline: [4, 6] as const,
+      done: [7] as const,
+      sign: [1, 2, 3] as const,
+      paid: [] as const, // MAG не видит оплату
+    },
+    allowedStatuses: [1, 2, 3, 4, 6, 7] as const,
   },
   SIGNER: {
-    decline: [2, 6],
-    done: [7, 8],
-    sign: [1, 5],
-    paid: [8],
-    info: "act_status"
-  }
+    statusMap: 'act_status',
+    statuses: {
+      decline: [2, 4, 6] as const,
+      done: [7, 8] as const,
+      sign: [1, 3, 5] as const,
+      paid: [8] as const,
+    },
+    allowedStatuses: [1, 2, 3, 4, 5, 6, 7, 8] as const,
+  },
 } as const;
 
-export class ActStatusService {
-  private readonly role: keyof typeof STATUS_CONFIG;
-  private readonly config: typeof STATUS_CONFIG[keyof typeof STATUS_CONFIG];
+export type ActRole = keyof typeof ACT_STATUS_CONFIG;
 
-  constructor(role?: keyof typeof STATUS_CONFIG) {
-    // Если роль не передана, получаем из useUser
-    this.role = role || this.getUserRole();
-    this.config = STATUS_CONFIG[this.role];
-  }
-
-  private getUserRole(): keyof typeof STATUS_CONFIG {
-    const user = useUser();
-    // Предположим, что в user есть поле role
-    return user.role as keyof typeof STATUS_CONFIG || "SIGNER";
-  }
-
-  public isDeclineAct(status: ActDto["status"]): boolean {
-    return this.config.decline.includes(status);
-  }
-
-  public isDoneAct(status: ActDto["status"]): boolean {
-    return this.config.done.includes(status);
-  }
-
-  public isSignAct(status: ActDto["status"]): boolean {
-    return this.config.sign.includes(status);
-  }
-
-  public isPaid(status: ActDto["status"]): boolean {
-    return this.config.paid.includes(status);
-  }
-
-  public get info(): string {
-    return this.config.info;
-  }
-
-  // Метод для получения всех методов сразу
-  public getMethods() {
-    return {
-      isDeclineAct: (status: ActDto["status"]) => this.isDeclineAct(status),
-      isDoneAct: (status: ActDto["status"]) => this.isDoneAct(status),
-      isSignAct: (status: ActDto["status"]) => this.isSignAct(status),
-      isPaid: (status: ActDto["status"]) => this.isPaid(status),
-      info: this.info
-    };
-  }
-
-  // Статический метод для быстрого создания инстанса
-  static create(role?: keyof typeof STATUS_CONFIG): ActStatusService {
-    return new ActStatusService(role);
-  }
+// Типы для хука
+interface UseActStatusReturn {
+  // Методы для конкретной роли
+  isDeclineAct: (status: ActDto["status"], role: ActRole) => boolean;
+  isDoneAct: (status: ActDto["status"], role: ActRole) => boolean;
+  isSignAct: (status: ActDto["status"], role: ActRole) => boolean;
+  isPaid: (status: ActDto["status"], role: ActRole) => boolean;
+  
+  // Методы для текущего пользователя
+  isDeclineActForCurrent: (status: ActDto["status"]) => boolean;
+  isDoneActForCurrent: (status: ActDto["status"]) => boolean;
+  isSignActForCurrent: (status: ActDto["status"]) => boolean;
+  isPaidForCurrent: (status: ActDto["status"]) => boolean;
+  
+  // Общие методы
+  getStatusMapKey: (role: ActRole) => string;
+  getAllowedStatuses: (role: ActRole) => readonly number[];
+  hasAccessToStatus: (role: ActRole, status: ActDto["status"]) => boolean;
+  
+  // Утилиты для текущего пользователя
+  currentUserRole: ActRole | null;
+  getCurrentUserStatusMapKey: () => string | null;
+  canUserAccessStatus: (status: ActDto["status"]) => boolean;
+  
+  // Получение конфигурации роли
+  getRoleConfig: (role: ActRole) => typeof ACT_STATUS_CONFIG[ActRole];
 }
 
-// Хуки для удобного использования в React компонентах
-export const useActStatus = (role?: keyof typeof STATUS_CONFIG) => {
-  const service = new ActStatusService(role);
-  return service.getMethods();
-};
+export const useActStatus = (): UseActStatusReturn => {
+  const { user } = useUser();
 
-// Альтернативный вариант - фабрика функций
-export const createActStatusCheckers = (role?: keyof typeof STATUS_CONFIG) => {
-  const service = new ActStatusService(role);
-  return service.getMethods();
+  // Получение конфигурации роли
+  const getRoleConfig = (role: ActRole) => {
+    return ACT_STATUS_CONFIG[role];
+  };
+
+  // Методы для конкретной роли
+  const isDeclineAct = (status: ActDto["status"], role: ActRole): boolean => {
+    const config = getRoleConfig(role);
+    return config.statuses.decline.some((el) => el === status);
+  };
+
+  const isDoneAct = (status: ActDto["status"], role: ActRole): boolean => {
+    const config = getRoleConfig(role);
+    return config.statuses.done.some((el) => el === status);
+  };
+
+  const isSignAct = (status: ActDto["status"], role: ActRole): boolean => {
+    const config = getRoleConfig(role);
+    return config.statuses.sign.some((el) => el === status);
+  };
+
+  const isPaid = (status: ActDto["status"], role: ActRole): boolean => {
+    const config = getRoleConfig(role);
+    return config.statuses.paid.some((el) => el === status);
+  };
+
+  // Методы для работы с ролями
+  const getStatusMapKey = (role: ActRole): string => {
+    return getRoleConfig(role).statusMap;
+  };
+
+  const getAllowedStatuses = (role: ActRole): readonly number[] => {
+    return getRoleConfig(role).allowedStatuses;
+  };
+
+  const hasAccessToStatus = (role: ActRole, status: ActDto["status"]): boolean => {
+    return getAllowedStatuses(role).includes(status);
+  };
+
+  // Утилиты для текущего пользователя
+  const currentUserRole = useMemo((): ActRole | null => {
+    if (!user?.role) return null;
+    
+    const userRole = user.role.toUpperCase() as ActRole;
+    return ACT_STATUS_CONFIG[userRole] ? userRole : null;
+  }, [user]);
+
+  const getCurrentUserStatusMapKey = (): string | null => {
+    return currentUserRole ? getStatusMapKey(currentUserRole) : null;
+  };
+
+  const canUserAccessStatus = (status: ActDto["status"]): boolean => {
+    return currentUserRole ? hasAccessToStatus(currentUserRole, status) : false;
+  };
+
+  // Методы для текущего пользователя (удобные обертки)
+  const isDeclineActForCurrent = (status: ActDto["status"]): boolean => {
+    return currentUserRole ? isDeclineAct(status, currentUserRole) : false;
+  };
+
+  const isDoneActForCurrent = (status: ActDto["status"]): boolean => {
+    return currentUserRole ? isDoneAct(status, currentUserRole) : false;
+  };
+
+  const isSignActForCurrent = (status: ActDto["status"]): boolean => {
+    return currentUserRole ? isSignAct(status, currentUserRole) : false;
+  };
+
+  const isPaidForCurrent = (status: ActDto["status"]): boolean => {
+    return currentUserRole ? isPaid(status, currentUserRole) : false;
+  };
+
+  return {
+    // Методы для конкретной роли
+    isDeclineAct,
+    isDoneAct,
+    isSignAct,
+    isPaid,
+    
+    // Методы для текущего пользователя
+    isDeclineActForCurrent,
+    isDoneActForCurrent,
+    isSignActForCurrent,
+    isPaidForCurrent,
+    
+    // Общие методы
+    getStatusMapKey,
+    getAllowedStatuses,
+    hasAccessToStatus,
+    
+    // Утилиты для текущего пользователя
+    currentUserRole,
+    getCurrentUserStatusMapKey,
+    canUserAccessStatus,
+    
+    // Конфигурация
+    getRoleConfig,
+  };
 };
