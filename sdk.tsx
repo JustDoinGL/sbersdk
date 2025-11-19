@@ -1,11 +1,11 @@
-const createDeadline = (daysToAdd: number = 0): number => {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() + daysToAdd);
-  
-  return new Date(date.toISOString().split('T')[0] + 'T00:00:00.000Z').getTime();
+const createDeadline = (daysToAdd = 0) => {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() + 1 + daysToAdd);
+    
+    // Устанавливаем время в 00:00:00 UTC
+    date.setUTCHours(0, 0, 0, 0);
+    
+    return date.getTime();
 };
 
-// Использование:
-const today = createDeadline(); // сегодня 00:00 UTC
-const tomorrow = createDeadline(1); // завтра 00:00 UTC
-const in3Days = createDeadline(3); // через 3 дня 00:00 UTC
+console.log(createDeadline());
