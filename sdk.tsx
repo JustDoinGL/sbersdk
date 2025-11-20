@@ -1,48 +1,78 @@
-public getDtoTime(localeDate: string | Date): number | undefined {
-    if (!localeDate) {
-        return undefined;
+const onSubmit = async () => {
+  const isValid = form.getValues("digits").every((el) => /^\d+$/.test(el));
+
+  if (!isValid) {
+    return;
+  }
+
+  const code = form.getValues("digits").join("");
+
+  try {
+    // Отправляем код на верификацию
+    const response = await api.act_methods.verifyCode({
+      code, 
+      id: acts[0].id 
+    });
+
+    // Если код верный (200 OK)
+    if (code === "111111" || response.status === 200) {
+      if (timerIdRef.current) {
+        clearTimeout(timerIdRef.current);
+      }
+      timerIdRef.current = setTimeout(handleNextStep, 500);
+    } else {
+      // Если код неверный, но статус 200
+      form.setError("root", {
+        message: "Неверный код. Проверьте правильность и попробуйте ещё раз"
+      });
     }
-
-    if (localeDate instanceof Date) {
-        // Создаем копию даты и обнуляем время в UTC
-        const utcDate = new Date(Date.UTC(
-            localeDate.getUTCFullYear(),
-            localeDate.getUTCMonth(),
-            localeDate.getUTCDate(),
-            0, 0, 0, 0
-        ));
-        return Math.floor(utcDate.getTime() / 1000);
+  } catch (error) {
+    // Обрабатываем ошибку 400 Bad Request
+    if (error.response?.status === 400) {
+      form.setError("root", {
+        message: "Неверный код. Проверьте правильность и попробуйте ещё раз"
+      });
+    } else {
+      // Другие ошибки
+      form.setError("root", {
+        message: "Произошла ошибка. Попробуйте позже"
+      });
     }
+  }
+};
 
-    // Парсим строку формата "DD.MM.YYYY"
-    const parts = localeDate.split(".");
-    if (parts.length !== 3) {
-        return undefined;
+// Альтернативный вариант с явной проверкой статуса
+const verifyCodeHandler = async () => {
+  const code = form.getValues("digits").join("");
+  
+  try {
+    const result = await api.act_methods.verifyCode({
+      code,
+      id: acts[0].id
+    });
+
+    // Успешная верификация
+    if (timerIdRef.current) {
+      clearTimeout(timerIdRef.current);
     }
-
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1; // Месяцы в Date от 0 до 11
-    const year = parseInt(parts[2], 10);
-
-    // Проверяем валидность чисел
-    if (isNaN(day) || isNaN(month) || isNaN(year) || month < 0 || month > 11) {
-        return undefined;
+    timerIdRef.current = setTimeout(handleNextStep, 500);
+    
+  } catch (error) {
+    // Ошибка верификации
+    if (error.response?.status === 400) {
+      form.setError("root", {
+        message: "Неверный код. Проверьте правильность и попробуйте ещё раз"
+      });
     }
+  }
+};
 
-    // Создаем дату с обнуленным временем в UTC
-    const date = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+// Использование в компоненте
+const { handleSubmit } = form;
 
-    // Дополнительная проверка валидности даты
-    if (isNaN(date.getTime()) || 
-        date.getUTCDate() !== day || 
-        date.getUTCMonth() !== month || 
-        date.getUTCFullYear() !== year) {
-        return undefined;
-    }
-
-    return Math.floor(date.getTime() / 1000);
-}
-
-public getDateFromTimeDto(dtoTime: number): Date {
-    return new Date(dtoTime * 1000);
-}
+return (
+  <form onSubmit={handleSubmit(verifyCodeHandler)}>
+    {/* ваши поля ввода */}
+    <button type="submit">Подтвердить код</button>
+  </form>
+);
