@@ -1,124 +1,169 @@
-import { api, References } from "@/5_shared/api";
-import { LONG_DASH } from "../consts";
+import { z } from 'zod';
 
-type RefKeys = keyof References;
-type DictMap = Record<number, References[RefKeys][number]>;
+// 1. Исправленная валидация email
+const emailSchema = z.string()
+  .email({ message: "Некорректный адрес. Пример: пример@пример.ru" });
 
-class ReferencesService {
-  private subscribers = new Set<() => void>();
-  private state = { 
-    isInitialized: false, 
-    error: null as Error | null 
-  };
+// Или если хотите кастомную валидацию:
+const customEmailSchema = z.string()
+  .min(1, { message: "Email обязателен" })
+  .refine(
+    (val) => /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(val),
+    { message: "Некорректный адрес. Пример: пример@пример.ru" }
+  );
 
-  // Методы для useSyncExternalStore
-  subscribe = (callback: () => void) => {
-    this.subscribers.add(callback);
-    return () => this.subscribers.delete(callback);
-  };
+// 2. Исправленная валидация для денежной суммы (премии)
+const awardSchema = z.string()
+  .min(1, { message: "Поле обязательно" })
+  .refine((val) => {
+    // Удаляем пробелы и заменяем запятые на точки
+    const cleaned = val.trim().replace(/\s+/g, '').replace(',', '.');
+    
+    // Проверяем, что это число
+    const num = parseFloat(cleaned);
+    return !isNaN(num);
+  }, { message: "Должно быть числом" })
+  .transform((val) => {
+    // Преобразуем строку в число
+    const cleaned = val.trim().replace(/\s+/g, '').replace(',', '.');
+    return parseFloat(cleaned);
+  })
+  .refine((val) => val >= 0, { 
+    message: "Премия конкурента не может быть меньше 0" 
+  })
+  .refine((val) => val <= 10000000, { 
+    message: "Премия не может быть больше 10 000 000" 
+  })
+  .refine((val) => {
+    // Проверяем количество знаков после запятой
+    const str = val.toString();
+    const parts = str.split('.');
+    return parts[1] ? parts[1].length <= 2 : true;
+  }, { message: "Не более 2 знаков после запятой" });
 
-  getSnapshot = () => this.state;
-
-  private notify = () => {
-    this.subscribers.forEach(callback => callback());
-  };
-
-  public async init() {
-    if (this.state.isInitialized) return;
-
-    try {
-      const response = await api.reference_methods.getReferences();
-      const keys = Object.keys(response) as RefKeys[];
-
-      keys.forEach((key) => {
-        const dictMap: DictMap = response[key].reduce((acc, rec) => {
-          acc[rec.id] = rec;
-          return acc;
-        }, {} as DictMap);
-        
-        sessionStorage.setItem(key, JSON.stringify(dictMap));
-      });
-
-      this.state = { isInitialized: true, error: null };
-    } catch (error) {
-      console.error("Failed to fetch References:", error);
-      this.state = { 
-        isInitialized: false, 
-        error: error instanceof Error ? error : new Error('Unknown error') 
-      };
-    } finally {
-      this.notify();
+// 3. Упрощенная версия с трансформером
+const awardSchemaSimple = z.string()
+  .min(1, { message: "Поле обязательно" })
+  .transform((val) => {
+    // Очищаем и преобразуем
+    const cleaned = val.trim()
+      .replace(/\s+/g, '')      // удаляем пробелы
+      .replace(',', '.');       // заменяем запятую на точку
+    
+    const num = parseFloat(cleaned);
+    
+    // Проверяем сразу несколько условий
+    if (isNaN(num)) {
+      throw new Error("Должно быть числом");
     }
-  }
-
-  public getDictMap(key: RefKeys): DictMap | null {
-    const stringifyDict = sessionStorage.getItem(key);
-
-    if (stringifyDict) {
-      try {
-        return JSON.parse(stringifyDict);
-      } catch {
-        return null;
-      }
+    
+    if (num < 0) {
+      throw new Error("Премия конкурента не может быть меньше 0");
     }
-    return null;
-  }
-
-  public getDictSet(key: RefKeys): References[RefKeys] {
-    const stringifyDict = sessionStorage.getItem(key);
-
-    if (stringifyDict) {
-      try {
-        const map: DictMap = JSON.parse(stringifyDict);
-        return Object.values(map);
-      } catch {
-        return [];
-      }
+    
+    if (num > 10000000) {
+      throw new Error("Премия не может быть больше 10 000 000");
     }
-    return [];
-  }
-
-  public getReferenceLabel(key: RefKeys, value?: number | null): string {
-    if (!value) {
-      console.warn("Не передан ключ для reference.");
-      return LONG_DASH;
+    
+    // Проверяем десятичные знаки
+    const decimalPart = cleaned.split('.')[1];
+    if (decimalPart && decimalPart.length > 2) {
+      throw new Error("Не более 2 знаков после запятой");
     }
+    
+    return num;
+  });
 
-    const stringifyDict = sessionStorage.getItem(key);
-    if (!stringifyDict) {
-      console.warn("Неизвестный ключ для reference: ", key);
-      return LONG_DASH;
-    }
+// 4. Альтернативный вариант с кастомной валидацией
+const createAwardSchema = () => {
+  return z.string()
+    .min(1, "Поле обязательно")
+    .refine(validateAward, "Некорректное значение")
+    .transform(parseAward);
+};
 
-    try {
-      const map: DictMap = JSON.parse(stringifyDict);
-      return map[value]?.name || LONG_DASH;
-    } catch {
-      console.warn("Ошибка при JSON.parse словаря", key, "по ключу", value);
-      return LONG_DASH;
-    }
-  }
-
-  public getReferenceValue(key: RefKeys, value?: number | null) {
-    if (!value) {
-      console.warn("Не передан ключ для reference.");
-      return null;
-    }
-
-    const stringifyDict = sessionStorage.getItem(key);
-    if (!stringifyDict) {
-      console.warn("Неизвестный ключ для reference: ", key);
-      return null;
-    }
-
-    try {
-      const map: DictMap = JSON.parse(stringifyDict);
-      return map[value] || null;
-    } catch {
-      console.warn("Ошибка при JSON.parse словаря", key, "по ключу", value);
-      return null;
-    }
-  }
+function validateAward(value: string): boolean {
+  // Регулярное выражение для числа с максимум 2 знаками после запятой
+  const regex = /^\s*\d{1,10}(?:[.,]\d{0,2})?\s*$/;
+  if (!regex.test(value)) return false;
+  
+  // Преобразуем и проверяем диапазон
+  const cleaned = value.trim().replace(/\s+/g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  
+  return !isNaN(num) && num >= 0 && num <= 10000000;
 }
 
-export const referencesService = new ReferencesService();
+function parseAward(value: string): number {
+  const cleaned = value.trim().replace(/\s+/g, '').replace(',', '.');
+  return parseFloat(cleaned);
+}
+
+// 5. Использование с форматированием ввода
+const awardSchemaWithFormatting = z.string()
+  .transform((val, ctx) => {
+    // Убираем все пробелы и лишние символы
+    const cleaned = val.replace(/\s+/g, '').replace(',', '.');
+    
+    // Проверяем, что это число
+    const num = parseFloat(cleaned);
+    if (isNaN(num)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Введите число",
+      });
+      return z.NEVER;
+    }
+    
+    return {
+      original: val,
+      value: num,
+      formatted: num.toLocaleString('ru-RU', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      })
+    };
+  })
+  .refine((data) => data.value >= 0, {
+    message: "Премия конкурента не может быть меньше 0"
+  })
+  .refine((data) => data.value <= 10000000, {
+    message: "Премия не может быть больше 10 000 000"
+  })
+  .refine((data) => {
+    const parts = data.value.toString().split('.');
+    return parts[1] ? parts[1].length <= 2 : true;
+  }, {
+    message: "Не более 2 знаков после запятой"
+  });
+
+// Пример использования
+try {
+  const validAward = awardSchema.parse("10 000,50"); // ✅ 10000.5
+  const validAward2 = awardSchema.parse("5000"); // ✅ 5000
+  const invalidAward = awardSchema.parse("10 000 000,001"); // ❌
+} catch (error) {
+  console.error(error.errors);
+}
+
+// 6. Для формы с несколькими полями
+export const competitorSchema = z.object({
+  name: z.string().min(2, "Имя должно содержать минимум 2 символа"),
+  email: customEmailSchema,
+  award: awardSchemaSimple,
+  // ... другие поля
+});
+
+// 7. Если нужно сохранять как строку с форматированием
+const awardStringSchema = z.string()
+  .min(1, "Поле обязательно")
+  .refine((val) => {
+    // Проверяем формат: пробелы разрешены, запятая или точка для десятичных
+    const regex = /^(\d{1,3}(?:\s?\d{3})*)(?:[.,]\d{1,2})?$/;
+    return regex.test(val.trim());
+  }, "Пример: 10 000,50 или 10000.50")
+  .refine((val) => {
+    const cleaned = val.replace(/\s+/g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return num >= 0 && num <= 10000000;
+  }, "Диапазон: 0 - 10 000 000");
