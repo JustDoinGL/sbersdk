@@ -14,11 +14,11 @@ export const usePollingForUnsignedActs = <T>({
   refetch,
   pollingInterval = 30000,
   enabled = true,
-}) => {
+}: UsePollingForUnsignedActsProps<T>) => {
   const [isPolling, setIsPolling] = useState(false);
   const [unsignedCount, setUnsignedCount] = useState(0);
   
-  const timerRef = useRef(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
