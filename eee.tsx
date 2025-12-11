@@ -1,58 +1,93 @@
-const handleManagersChangeWithSettled = async (newManagers: Managers[]): Promise<{success: boolean}> => {
-  const oldManagers = managersRef.current;
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+interface UsePollingForUnsignedActsProps<T> {
+  entities: T[];
+  hasUnsignedStatus: (entity: T) => boolean;
+  refetch: () => Promise<void> | void;
+  pollingInterval?: number;
+  enabled?: boolean;
+}
+
+export const usePollingForUnsignedActs = <T>({
+  entities,
+  hasUnsignedStatus,
+  refetch,
+  pollingInterval = 30000,
+  enabled = true,
+}) => {
+  const [isPolling, setIsPolling] = useState(false);
+  const [unsignedCount, setUnsignedCount] = useState(0);
   
-  const toAdd = newManagers.filter(newItem => 
-    !oldManagers.some(oldItem => oldItem.value === newItem.value)
-  );
-  
-  const toRemove = oldManagers.filter(oldItem => 
-    !newManagers.some(newItem => newItem.value === newItem.value)
-  );
+  const timerRef = useRef(null);
+  const isMountedRef = useRef(true);
 
-  if (toAdd.length === 0 && toRemove.length === 0) {
-    return { success: true };
-  }
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
-  const promises = [
-    ...toAdd.map(manager => 
-      api.patchedSetManagers({
-        instance_id: salesPoint.id,
-        manager: parseInt(manager.value),
-        action: ActionEnum.ADD,
-        dto: DtoEnum.SALES_POINT
-      }).then(() => ({ type: 'add', manager, success: true }))
-    ),
-    ...toRemove.map(manager => 
-      api.patchedSetManagers({
-        instance_id: salesPoint.id,
-        manager: parseInt(manager.value),
-        action: ActionEnum.REMOVE,
-        dto: DtoEnum.SALES_POINT
-      }).then(() => ({ type: 'remove', manager, success: true }))
-    )
-  ];
+  const stopPolling = useCallback(() => {
+    setIsPolling(false);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
-  const results = await Promise.allSettled(promises);
-  
-  const successful = results.filter((result): result is PromiseFulfilledResult<any> => 
-    result.status === 'fulfilled'
-  );
-  const failed = results.filter(result => result.status === 'rejected');
+  const startPolling = useCallback(() => {
+    if (!enabled || !isMountedRef.current) return;
+    setIsPolling(true);
+  }, [enabled]);
 
-  if (failed.length > 0) {
-    console.error(`Не удалось выполнить ${failed.length} операций с менеджерами`);
-    push({
-      title: `Ошибка в ${failed.length} операциях с менеджерами`,
-      type: "negative",
-    });
-    return { success: false };
-  }
+  useEffect(() => {
+    if (!isMountedRef.current || !enabled) return;
 
-  managersRef.current = newManagers;
-  push({
-    title: `Успешно обновлено ${successful.length} менеджеров`,
-    type: "positive",
-  });
-  
-  return { success: true };
+    const unsignedEntities = entities?.filter(hasUnsignedStatus) || [];
+    const newUnsignedCount = unsignedEntities.length;
+    
+    setUnsignedCount(newUnsignedCount);
+
+    if (newUnsignedCount > 0 && !isPolling) {
+      startPolling();
+    } else if (newUnsignedCount === 0 && isPolling) {
+      stopPolling();
+    }
+  }, [entities, hasUnsignedStatus, isPolling, enabled, startPolling, stopPolling]);
+
+  useEffect(() => {
+    if (!isPolling || !enabled) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = setTimeout(() => {
+      if (isMountedRef.current && isPolling) {
+        refetch();
+      }
+    }, pollingInterval);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [isPolling, refetch, pollingInterval, enabled]);
+
+  return {
+    isPolling,
+    unsignedCount,
+    stopPolling,
+    startPolling,
+  };
 };
