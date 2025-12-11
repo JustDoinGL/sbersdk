@@ -1,93 +1,135 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useGetAct } from './path-to-your-useGetAct-hook'; // Укажите правильный путь
+import { ActDto } from './path-to-your-types'; // Укажите правильный путь
 
-interface UsePollingForUnsignedActsProps<T> {
-  entities: T[];
-  hasUnsignedStatus: (entity: T) => boolean;
-  refetch: () => Promise<void> | void;
-  pollingInterval?: number;
+interface UseGetActWithPollingOptions {
+  statuses: string[];
+  ordering: string;
+  pollInterval?: number;
   enabled?: boolean;
 }
 
-export const usePollingForUnsignedActs = <T>({
-  entities,
-  hasUnsignedStatus,
-  refetch,
-  pollingInterval = 30000,
-  enabled = true,
-}: UsePollingForUnsignedActsProps<T>) => {
-  const [isPolling, setIsPolling] = useState(false);
-  const [unsignedCount, setUnsignedCount] = useState(0);
-  
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const isMountedRef = useRef(true);
+interface UseGetActWithPollingResult {
+  data: ActDto[] | undefined;
+  isLoading: boolean;
+  error: unknown;
+  refetch: () => void;
+  isPolling: boolean;
+  stopPolling: () => void;
+  startPolling: () => void;
+}
 
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
+export function useGetActWithPolling({
+  statuses,
+  ordering,
+  pollInterval = 30000, // 30 секунд по умолчанию
+  enabled = true
+}: UseGetActWithPollingOptions): UseGetActWithPollingResult {
+  const [isPolling, setIsPolling] = useState(true);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastDataRef = useRef<ActDto[] | undefined>(undefined);
 
-  const stopPolling = useCallback(() => {
-    setIsPolling(false);
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+  // Используем существующий хук useGetAct
+  const { data, isLoading, error, refetch } = useGetAct({
+    statuses,
+    ordering,
+    enabled: enabled && isPolling // Передаем флаг enabled для управления запросом
+  });
 
-  const startPolling = useCallback(() => {
-    if (!enabled || !isMountedRef.current) return;
-    setIsPolling(true);
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!isMountedRef.current || !enabled) return;
-
-    const unsignedEntities = entities?.filter(hasUnsignedStatus) || [];
-    const newUnsignedCount = unsignedEntities.length;
+  // Проверяем, нужно ли продолжать опрос
+  const shouldContinuePolling = (): boolean => {
+    if (!data || data.length === 0) return false;
     
-    setUnsignedCount(newUnsignedCount);
+    // Считаем количество актов, которые могут быть подписаны
+    // Предположим, что в ActDto есть поле count или можно вычислить количество
+    // Если такого поля нет, адаптируйте логику под вашу структуру данных
+    
+    // Пример 1: Если в ActDto есть поле count
+    // const totalCount = data.reduce((sum, act) => sum + (act.count || 0), 0);
+    // return totalCount > 0;
+    
+    // Пример 2: Если нужно проверять по статусам
+    // return data.some(act => act.status === 'pending');
+    
+    // Пример 3: Если нужно проверять наличие определенных актов
+    // return data.length > 0;
+    
+    // В вашем случае, судя по коду, опрос продолжается пока есть акты для подписи
+    // Используем длину массива как индикатор
+    return data.length > 0;
+  };
 
-    if (newUnsignedCount > 0 && !isPolling) {
-      startPolling();
-    } else if (newUnsignedCount === 0 && isPolling) {
-      stopPolling();
+  // Начинаем опрос
+  const startPolling = () => {
+    if (!isPolling) {
+      setIsPolling(true);
     }
-  }, [entities, hasUnsignedStatus, isPolling, enabled, startPolling, stopPolling]);
+  };
 
+  // Останавливаем опрос
+  const stopPolling = () => {
+    if (isPolling) {
+      setIsPolling(false);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    }
+  };
+
+  // Функция для ручного обновления
+  const handleManualRefetch = () => {
+    refetch();
+  };
+
+  // Эффект для управления интервалом опроса
   useEffect(() => {
     if (!isPolling || !enabled) {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
       return;
     }
 
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
+    // Начинаем интервальный опрос
+    pollingIntervalRef.current = setInterval(() => {
+      refetch();
+    }, pollInterval);
 
-    timerRef.current = setTimeout(() => {
-      if (isMountedRef.current && isPolling) {
-        refetch();
-      }
-    }, pollingInterval);
-
+    // Очистка интервала при размонтировании
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
-  }, [isPolling, refetch, pollingInterval, enabled]);
+  }, [isPolling, enabled, pollInterval, refetch]);
+
+  // Эффект для проверки данных и остановки опроса
+  useEffect(() => {
+    if (data && !isLoading) {
+      lastDataRef.current = data;
+      
+      // Проверяем, нужно ли продолжать опрос
+      if (!shouldContinuePolling() && isPolling) {
+        stopPolling();
+      }
+      
+      // Если данных нет, но опрос был остановлен, можно снова начать при появлении данных
+      if (shouldContinuePolling() && !isPolling) {
+        startPolling();
+      }
+    }
+  }, [data, isLoading]);
 
   return {
+    data,
+    isLoading,
+    error,
+    refetch: handleManualRefetch,
     isPolling,
-    unsignedCount,
     stopPolling,
-    startPolling,
+    startPolling
   };
-};
+}
