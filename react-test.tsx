@@ -1,203 +1,193 @@
+import React, { FC, ReactNode } from 'react';
 import {
   QueryClient,
   QueryClientProvider,
   useQuery,
-  QueryKey,
-  QueryFunction
+  UseQueryOptions,
+  ensureQueryData
 } from '@tanstack/react-query';
 import {
   createBrowserRouter,
   RouterProvider,
+  RouteObject,
   LoaderFunctionArgs,
   useLoaderData,
-  useParams,
-  Link,
-  PrefetchPageLinks
+  useParams
 } from 'react-router-dom';
-import React, { ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 
-// 1. Типы данных
-interface Product {
-  id: number;
-  name: string;
-  description: string;
+// ========== ТИПЫ ==========
+interface DealDto {
+  id: string;
+  product: string;
+  title: string;
   price: number;
 }
 
-// 2. Конфигурация запроса
-const productDetailQuery = (id: string): {
-  queryKey: QueryKey;
-  queryFn: QueryFunction<Product>;
-} => ({
-  queryKey: ['products', 'detail', id],
-  queryFn: async (): Promise<Product> => {
-    console.log(`Fetching product ${id}...`);
-    const res = await fetch(`/api/products/${id}`);
-    return res.json();
+// ========== API МОДЕЛЬ ==========
+const dealListApi = {
+  getDealByIdOptions: (id: string): UseQueryOptions<DealDto, Error, DealDto, [string, string]> => ({
+    queryKey: ['deal', id],
+    queryFn: async (): Promise<DealDto> => {
+      console.log(`Fetching deal ${id} from API...`);
+      const res = await fetch(`/api/deals/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch deal');
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 минут
+  }),
+};
+
+// ========== LOADER ==========
+const productLoader = (queryClient: QueryClient) => 
+  async ({ params, request }: LoaderFunctionArgs): Promise<DealDto> => {
+    const { id } = params as { id: string };
+    const url = new URL(request.url);
+    const isPrefetch = url.searchParams.has("_prefetch");
+
+    console.log(`${isPrefetch ? "Prefetching" : "Loading"} deal ${id}`);
+    
+    // Ключевое исправление: ensureQueryData проверяет кэш и загружает только если нужно
+    return await ensureQueryData<DealDto>(
+      queryClient,
+      dealListApi.getDealByIdOptions(id)
+    );
+  };
+
+// ========== КОМПОНЕНТ PRODUCTS ==========
+const NameProducts: FC = () => <div>Special Product Component</div>;
+
+const products: Record<string, ReactNode> = {
+  '32': <NameProducts />,
+};
+
+export const Products: FC = () => {
+  const { id } = useParams() as { id: string };
+  
+  // 1. Получаем данные из loader
+  const initialData = useLoaderData() as DealDto;
+  
+  // 2. Используем хук с initialData
+  const { data, isLoading, isError } = useQuery<DealDto, Error>({
+    ...dealListApi.getDealByIdOptions(id),
+    initialData, // Ключевая строка - предотвращает дублирующий запрос
+  });
+
+  if (isLoading) {
+    return <div>Загрузка...</div>;
+  }
+
+  if (isError) {
+    return <>Ошибка</>;
+  }
+
+  if (data && products[data.product]) {
+    return products[data.product];
+  }
+
+  return <>{data?.product || id}</>;
+};
+
+// ========== КОНФИГУРАЦИЯ ROUTES ==========
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 минут
+      refetchOnWindowFocus: false,
+    },
   },
 });
 
-// 3. Загрузчик для префетчинга
-export const productLoader = (queryClient: QueryClient) => 
-  async ({ params, request }: LoaderFunctionArgs): Promise<Product> => {
-    const { id } = params as { id: string };
-    const url = new URL(request.url);
-    
-    // Определяем, префетчинг это или обычная загрузка
-    const isPrefetch = url.searchParams.has('_prefetch');
-    
-    console.log(`${isPrefetch ? 'Prefetching' : 'Loading'} product ${id}`);
-    
-    const query = productDetailQuery(id);
-    
-    // Проверяем кэш
-    const cachedData = queryClient.getQueryData<Product>(query.queryKey);
-    if (cachedData) {
-      return cachedData;
-    }
-    
-    // Загружаем и кэшируем
-    return await queryClient.fetchQuery<Product>(query);
+export const productsRoutes: RouteObject[] = [
+  {
+    path: '/deals/:id/products',
+    element: <Products />,
+    loader: productLoader(queryClient),
+  },
+];
+
+// ========== ПРИМЕР ИСПОЛЬЗОВАНИЯ PREFETCH ==========
+const DealList: FC = () => {
+  const handlePrefetch = (dealId: string) => {
+    // Префетчим данные при наведении
+    queryClient.prefetchQuery(dealListApi.getDealByIdOptions(dealId));
   };
 
-// 4. Компонент продукта
-function Product(): React.JSX.Element {
-  const { id } = useParams() as { id: string };
-  const initialData = useLoaderData() as Product;
-  
-  const { data: product, isPending } = useQuery({
-    ...productDetailQuery(id),
-    initialData,
-  });
-
-  if (isPending) return <div>Загрузка...</div>;
-
   return (
     <div>
-      <h1>{product.name}</h1>
-      <p>{product.description}</p>
-      <p>Цена: ${product.price}</p>
-      <Link to="/">На главную</Link>
+      <h2>Список сделок</h2>
+      {['1', '2', '3'].map((dealId) => (
+        <div
+          key={dealId}
+          onMouseEnter={() => handlePrefetch(dealId)}
+          style={{ padding: '10px', border: '1px solid #ccc', margin: '5px' }}
+        >
+          <a href={`/deals/${dealId}/products`}>Сделка {dealId}</a>
+        </div>
+      ))}
     </div>
   );
-}
+};
 
-// 5. Главная страница с префетчингом ссылок
-function Home(): React.JSX.Element {
-  return (
-    <div>
-      <h1>Товары</h1>
-      
-      {/* 1. Префетчинг по наведению (intent) */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Префетчинг по наведению:</h3>
-        <Link 
-          to="/product/1" 
-          prefetch="intent" // Срабатывает при наведении или фокусе
-        >
-          Товар 1 (intent)
-        </Link>
-      </div>
-      
-      {/* 2. Немедленный префетчинг (render) */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Немедленный префетчинг:</h3>
-        <Link 
-          to="/product/2" 
-          prefetch="render" // Префетчится сразу при рендере ссылки
-        >
-          Товар 2 (render)
-        </Link>
-      </div>
-      
-      {/* 3. Без префетчинга */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Без префетчинга:</h3>
-        <Link to="/product/3">
-          Товар 3 (none)
-        </Link>
-      </div>
-      
-      {/* 4. Префетчинг с View Transition API */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>С View Transitions:</h3>
-        <Link 
-          to="/product/4" 
-          prefetch="intent"
-          unstable_viewTransition
-        >
-          Товар 4 (с анимацией)
-        </Link>
-      </div>
-      
-      {/* 5. Программный префетчинг */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Программный префетчинг:</h3>
-        <button
-          onClick={() => {
-            // Можно использовать useNavigate для префетчинга
-            const link = document.createElement('link');
-            link.rel = 'prefetch';
-            link.href = '/product/5';
-            document.head.appendChild(link);
-          }}
-        >
-          Префетч товара 5 (JS)
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// 6. Компонент префетчинга через <PrefetchPageLinks>
-function PrefetchComponent(): React.JSX.Element {
-  return (
-    <div>
-      {/* Этот компонент рендерит <link rel="prefetch"> для страницы */}
-      <PrefetchPageLinks page="/product/100" />
-      <p>Страница /product/100 будет префетчена</p>
-    </div>
-  );
-}
-
-// 7. Настройка маршрутизатора
-const queryClient = new QueryClient();
-
+// ========== ОСНОВНОЙ РОУТЕР ==========
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <Home />,
+    element: <DealList />,
   },
-  {
-    path: '/product/:id',
-    element: <Product />,
-    loader: productLoader(queryClient),
-  },
-  {
-    path: '/prefetch',
-    element: <PrefetchComponent />,
-  },
+  ...productsRoutes,
 ]);
 
-// 8. Главное приложение
-function App(): React.JSX.Element {
+// ========== КОРНЕВОЙ КОМПОНЕНТ ==========
+const App: FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider 
-        router={router}
-        // Опционально: глобальная конфигурация префетчинга
-        future={{
-          v7_prependBasename: true,
-        }}
-      />
+      <RouterProvider router={router} />
     </QueryClientProvider>
   );
-}
+};
 
-// 9. Рендеринг
+// ========== РЕНДЕРИНГ ==========
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
 );
+
+// ========== АЛЬТЕРНАТИВНЫЙ ВАРИАНТ LOADER (без ensureQueryData) ==========
+const productLoaderAlternative = (queryClient: QueryClient) => 
+  async ({ params }: LoaderFunctionArgs): Promise<DealDto> => {
+    const { id } = params as { id: string };
+    const options = dealListApi.getDealByIdOptions(id);
+    
+    // Вручную проверяем кэш
+    const cached = queryClient.getQueryData<DealDto>(options.queryKey);
+    if (cached) {
+      console.log(`Taking deal ${id} from cache`);
+      return cached;
+    }
+    
+    console.log(`Fetching deal ${id} from server`);
+    return await queryClient.fetchQuery<DealDto, Error>(options);
+  };
+
+// ========== ТИПИЗИРОВАННАЯ ВЕРСИЯ ДЛЯ СТРОГОЙ ТИПИЗАЦИИ ==========
+type StrictLoaderFunction = (
+  queryClient: QueryClient
+) => (args: LoaderFunctionArgs) => Promise<DealDto>;
+
+const strictProductLoader: StrictLoaderFunction = (queryClient) => 
+  async ({ params }) => {
+    const { id } = params as { id: string };
+    
+    const queryOptions: UseQueryOptions<DealDto, Error, DealDto, [string, string]> = {
+      queryKey: ['deal', id],
+      queryFn: async () => {
+        const response = await fetch(`/api/deals/${id}`);
+        return response.json();
+      },
+      staleTime: 300000,
+    };
+    
+    return ensureQueryData(queryClient, queryOptions);
+  };
