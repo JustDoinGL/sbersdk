@@ -1,9 +1,28 @@
-import { LoaderFunctionArgs, RouteObject } from "react-router-dom";
+import { FC } from "react";
+import { NameProducts } from "./1_widgets/test-form";
+
+const products: Record<number, JSX.Element> = {
+  32: <NameProducts />,
+};
+
+export const Products: FC = () => {
+  const { deal } = useAsyncValue() as { deal: { product: { id: number } } };
+  
+  const productId = deal.product.id;
+  const productComponent = products[productId];
+  
+  if (productComponent) {
+    return productComponent;
+  }
+  
+  return <>Адаптируйте компонент для продукта с номером {productId}</>;
+};
+
+import { LoaderFunctionArgs, RouteObject } from "react-router";
 import { dealListApi } from "@4_entities/deal";
 import { QueryClient } from "@tanstack/react-query";
-import { DealRoutes, Routes } from "@5_shared/routes/routes.desktop";
+import { DealRoutes, Routes } from "@5_shared/routes/routes.deskTop";
 import { RouteErrorBoundary, ProductLoader } from "./product-error-boundary";
-import { DealDto } from "@5_shared/api";
 
 const queryClient = new QueryClient();
 
@@ -14,11 +33,9 @@ const productLoader = async ({ params }: LoaderFunctionArgs) => {
   }
 
   try {
-    const deal = await queryClient.fetchQuery({
-      queryKey: ['deal', id],
-      queryFn: () => dealListApi.getDealByID({ id }),
-      staleTime: 60 * 1000, // 1 минута
-    });
+    const deal = await queryClient.fetchQuery(
+      dealListApi.getDealById({ id })
+    );
 
     if (!deal) {
       throw new Response("Product not found", { status: 404 });
@@ -26,74 +43,53 @@ const productLoader = async ({ params }: LoaderFunctionArgs) => {
 
     return { deal };
   } catch (error) {
-    // Преобразуем ошибку TanStack Query в Response
-    throw new Response("Failed to load product", { 
-      status: 500,
-      statusText: error instanceof Error ? error.message : "Unknown error"
-    });
+    throw new Response("Failed to load product", { status: 500 });
   }
 };
 
 export const productsRoutes: RouteObject[] = [
   {
-    path: Routes.DEAL, // Используйте конкретный путь
+    path: `${Routes.DEAL}${DealRoutes.PRODUCTS}`,
     element: <ProductLoader />,
     loader: productLoader,
     errorElement: <RouteErrorBoundary />,
   },
 ];
 
-import { 
-  isRouteErrorResponse, 
-  useRouteError, 
-  Await, 
-  useLoaderData,
-  useAsyncValue,
-  useAsyncError 
-} from "react-router-dom";
-import { ErrorBoundary, Spinner, Text } from "@sg/uikit";
-import { Suspense } from "react";
-import { Products } from "./app";
-import { DealDto } from "@5_shared/api";
-import { FC } from "react";
 
-// Компонент для отображения загруженной сделки
-const DealContent: FC = () => {
-  const deal = useAsyncValue() as DealDto;
-  return <Products deal={deal} />;
-};
-
-// Компонент для обработки ошибок в Await
-const DealError: FC = () => {
-  const error = useAsyncError();
-  return <Text>Ошибка загрузки сделки: {error?.toString()}</Text>;
-};
-
+// В product-error-boundary.tsx (B189316D-76C8-4F45-BAEC-2575860D1C0D.jpeg)
 export const ProductLoader = () => {
-  const loaderData = useLoaderData() as { deal: Promise<DealDto> };
+  const { deal } = useLoaderData() as { deal: DealDto };
 
   return (
     <ErrorBoundary>
       <Suspense fallback={<Spinner />}>
-        <Await 
-          resolve={loaderData.deal}
-          errorElement={<DealError />}
-        >
-          <DealContent />
+        <Await resolve={deal}>
+          <Products />
         </Await>
       </Suspense>
     </ErrorBoundary>
   );
 };
 
-export const RouteErrorBoundary = () => {
-  const error = useRouteError();
 
+
+// products-with-loader.tsx
+import { Suspense } from "react";
+import { Spinner } from "@sg/uikit";
+import { Products } from "./products";
+
+export const ProductsWithLoader = () => {
   return (
-    <Text>
-      {isRouteErrorResponse(error)
-        ? `${error.status} ${error.statusText || "Ошибка загрузки"}`
-        : "Неизвестная ошибка"}
-    </Text>
+    <Suspense fallback={<Spinner />}>
+      <Products />
+    </Suspense>
   );
 };
+
+// Затем используйте его в роутах:
+// element: <ProductsWithLoader />,
+
+
+
+
