@@ -1,137 +1,99 @@
-import { useState, useMemo } from "react";
-import { FormProvider, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { productForm, ProductForm, productSteps } from "./schema";
+import { LoaderFunctionArgs, RouteObject } from "react-router-dom";
+import { dealListApi } from "@4_entities/deal";
+import { QueryClient } from "@tanstack/react-query";
+import { DealRoutes, Routes } from "@5_shared/routes/routes.desktop";
+import { RouteErrorBoundary, ProductLoader } from "./product-error-boundary";
+import { DealDto } from "@5_shared/api";
 
-export const Products = () => {
-  // Динамически определяем первый и последний шаг
-  const stepKeys = Object.keys(productSteps).map(Number).sort((a, b) => a - b);
-  const firstStep = stepKeys[0];
-  const lastStep = stepKeys[stepKeys.length - 1];
-  
-  const [currentStep, setCurrentStep] = useState<number>(firstStep);
+const queryClient = new QueryClient();
 
-  const methods = useForm<ProductForm>({
-    resolver: zodResolver(productForm),
-    mode: "onChange",
-  });
+const productLoader = async ({ params }: LoaderFunctionArgs) => {
+  const id = params.id as string;
+  if (!id) {
+    throw new Response("Product ID is required", { status: 400 });
+  }
 
-  const { handleSubmit, trigger, formState } = methods;
+  try {
+    const deal = await queryClient.fetchQuery({
+      queryKey: ['deal', id],
+      queryFn: () => dealListApi.getDealByID({ id }),
+      staleTime: 60 * 1000, // 1 минута
+    });
 
-  const onSubmit = async (formData: ProductForm) => {
-    console.log("Все данные формы:", formData);
-    // Отправка данных
-  };
-
-  const handleNext = async () => {
-    const currentStepFields = productSteps[currentStep]?.fields;
-
-    if (!currentStepFields) {
-      console.error(`Шаг ${currentStep} не найден`);
-      return;
+    if (!deal) {
+      throw new Response("Product not found", { status: 404 });
     }
 
-    console.log(`Валидируем поля шага ${currentStep}:`, currentStepFields);
+    return { deal };
+  } catch (error) {
+    // Преобразуем ошибку TanStack Query в Response
+    throw new Response("Failed to load product", { 
+      status: 500,
+      statusText: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+};
 
-    const isValid = await trigger(currentStepFields);
+export const productsRoutes: RouteObject[] = [
+  {
+    path: Routes.DEAL, // Используйте конкретный путь
+    element: <ProductLoader />,
+    loader: productLoader,
+    errorElement: <RouteErrorBoundary />,
+  },
+];
 
-    if (isValid) {
-      console.log("Шаг валиден, переходим дальше");
+import { 
+  isRouteErrorResponse, 
+  useRouteError, 
+  Await, 
+  useLoaderData,
+  useAsyncValue,
+  useAsyncError 
+} from "react-router-dom";
+import { ErrorBoundary, Spinner, Text } from "@sg/uikit";
+import { Suspense } from "react";
+import { Products } from "./app";
+import { DealDto } from "@5_shared/api";
+import { FC } from "react";
 
-      if (currentStep < lastStep) {
-        setCurrentStep((prev) => prev + 1);
-      } else {
-        // Последний шаг - отправляем форму
-        handleSubmit(onSubmit)();
-      }
-    } else {
-      console.log("Шаг невалиден, ошибки:", formState.errors);
-    }
-  };
+// Компонент для отображения загруженной сделки
+const DealContent: FC = () => {
+  const deal = useAsyncValue() as DealDto;
+  return <Products deal={deal} />;
+};
 
-  const handlePrev = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, firstStep));
-  };
+// Компонент для обработки ошибок в Await
+const DealError: FC = () => {
+  const error = useAsyncError();
+  return <Text>Ошибка загрузки сделки: {error?.toString()}</Text>;
+};
 
-  const handleJumpToStep = (step: number) => {
-    if (step >= firstStep && step <= lastStep) {
-      setCurrentStep(step);
-    }
-  };
-
-  const CurrentStepComponent = productSteps[currentStep]?.Component;
-
-  // Прогресс в процентах
-  const progressPercentage = useMemo(() => {
-    const totalSteps = lastStep - firstStep + 1;
-    const currentProgress = currentStep - firstStep;
-    return Math.round((currentProgress / totalSteps) * 100);
-  }, [currentStep, firstStep, lastStep]);
-
-  // Проверяем, можно ли перейти на следующий шаг
-  const isNextDisabled = currentStep === lastStep;
+export const ProductLoader = () => {
+  const loaderData = useLoaderData() as { deal: Promise<DealDto> };
 
   return (
-    <FormProvider {...methods}>
-      <div className="product-form-container">
-        {/* Прогресс-бар */}
-        <div className="progress-container">
-          <div className="progress-bar" style={{ width: `${progressPercentage}%` }} />
-          <div className="step-indicator">
-            Шаг {currentStep} из {lastStep}
-          </div>
-        </div>
+    <ErrorBoundary>
+      <Suspense fallback={<Spinner />}>
+        <Await 
+          resolve={loaderData.deal}
+          errorElement={<DealError />}
+        >
+          <DealContent />
+        </Await>
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
 
-        {/* Текущий шаг формы */}
-        {CurrentStepComponent ? (
-          <CurrentStepComponent />
-        ) : (
-          <div>Компонент для шага {currentStep} не найден</div>
-        )}
+export const RouteErrorBoundary = () => {
+  const error = useRouteError();
 
-        {/* Навигация */}
-        <div className="navigation-buttons">
-          <button
-            type="button"
-            onClick={handlePrev}
-            disabled={currentStep === firstStep}
-            className="nav-button prev-button"
-          >
-            Назад
-          </button>
-
-          {/* Быстрая навигация по шагам (опционально) */}
-          <div className="step-jump">
-            {stepKeys.map((step) => (
-              <button
-                key={step}
-                type="button"
-                onClick={() => handleJumpToStep(step)}
-                className={`step-dot ${step === currentStep ? 'active' : ''}`}
-                title={`Перейти к шагу ${step}`}
-              />
-            ))}
-          </div>
-
-          {isNextDisabled ? (
-            <button
-              type="button"
-              onClick={handleSubmit(onSubmit)}
-              className="nav-button submit-button"
-            >
-              Отправить
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleNext}
-              className="nav-button next-button"
-            >
-              Далее
-            </button>
-          )}
-        </div>
-      </div>
-    </FormProvider>
+  return (
+    <Text>
+      {isRouteErrorResponse(error)
+        ? `${error.status} ${error.statusText || "Ошибка загрузки"}`
+        : "Неизвестная ошибка"}
+    </Text>
   );
 };
