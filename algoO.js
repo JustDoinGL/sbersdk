@@ -1,36 +1,26 @@
+import { createContext, useContext } from "react";
+import { NameProducts } from "./1_widgets/test-form";
+
+type NameProductsValue = ReturnType<typeof NameProducts>;
+
+const NameProductsContext = createContext<NameProductsValue | null>(null);
+
+export const useNameProductsContext = () => {
+  const ctx = useContext(NameProductsContext);
+  if (!ctx) {
+    throw new Error("useNameProductsContext must be used inside Provider");
+  }
+  return ctx;
+};
+
+export { NameProductsContext };
+
+
 import { FC, ReactNode } from "react";
-import { NameProductsProvider, useNameProductsContext } from "./NameProductsProvider";
+import { NameProductsContext } from "./NameProductsContext";
+import { NameProducts } from "./1_widgets/test-form";
 
-// Типы для суб-компонентов
-const ProductsForm: FC = () => {
-  const { Form } = useNameProductsContext();
-  return <>{Form}</>;
+export const NameProductsProvider: FC<{ children: ReactNode }> = ({ children }) => {
+  const data = NameProducts();
+  return <NameProductsContext.Provider value={data}>{children}</NameProductsContext.Provider>;
 };
-
-const ProductsButtonController: FC = () => {
-  const { ButtonController } = useNameProductsContext();
-  return <ButtonController />;
-};
-
-// Основные пропсы для Products
-type ProductsProps = {
-  product?: number;
-  children?: ReactNode;
-};
-
-// Тип для компонента Products с суб-компонентами
-type ProductsComponent = FC<ProductsProps> & {
-  Form: FC;
-  ButtonController: FC;
-};
-
-// Основной компонент
-const Products: ProductsComponent = ({ children }) => (
-  <NameProductsProvider>{children}</NameProductsProvider>
-);
-
-// Прикрепляем суб-компоненты
-Products.Form = ProductsForm;
-Products.ButtonController = ProductsButtonController;
-
-export { Products };
