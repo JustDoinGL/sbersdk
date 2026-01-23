@@ -23,3 +23,4 @@ export function useDeviceGate(query = "(max-width: 769px)") {
     isMobile
   };
 }
+
