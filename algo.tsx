@@ -1,31 +1,35 @@
-// useInfiniteScroll.ts
-type Args<TData> = {
-    queryKey: readonly unknown[];
-    queryFn: QueryFunction<{ data: TData[]; next?: number }>;
-    initialPageParam?: number;
-};
+import { z } from 'zod';
 
-export const useInfiniteScroll = <TData>(args: Args<TData>) => {
-    const { queryKey, queryFn, initialPageParam = 1 } = args;
+const EMPTY_MESSAGE = "EMPTY_MESSAGE";
 
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
+// Исходная схема
+const physicalSchema = z.object({
+  name: z.string().min(1, { message: EMPTY_MESSAGE }),
+  email: z.string().email().min(1, { message: EMPTY_MESSAGE }),
+});
 
-    const {
-        data: activitiesData,
-        fetchNextPage,
-        hasNextPage,
-    } = useInfiniteQuery({
-        queryKey,
-        queryFn,
-        initialPageParam,
-        getNextPageParam: (lastPage) => lastPage.next,
-        select: (data) => ({
-            ...data,
-            flatData: data.pages.flatMap((page) => page.data || [])
-        }),
-    });
+// Функция для добавления префиксов
+function createPrefixedSchema<T extends z.ZodObject<any>>(
+  schema: T,
+  prefix: string
+) {
+  const shape = schema.shape;
+  const prefixedShape: Record<string, z.ZodTypeAny> = {};
+  
+  Object.keys(shape).forEach((key) => {
+    prefixedShape[`${prefix}_${key}`] = shape[key];
+  });
+  
+  return z.object(prefixedShape);
+}
 
-    const flatActivitiesData = activitiesData?.flatData || [];
+// Создаем схему с префиксом
+const userPhysicalSchema = createPrefixedSchema(physicalSchema, "user");
 
-    // ... остальной код
-};
+// Тип вывода
+type UserPhysicalSchema = z.infer<typeof userPhysicalSchema>;
+// Теперь тип имеет ключи: user_name, user_email
+
+// Получаем ключи
+const keys = Object.keys(userPhysicalSchema.shape) as Array<keyof UserPhysicalSchema>;
+// keys = ["user_name", "user_email"]
