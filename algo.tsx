@@ -1,35 +1,30 @@
-import { z } from 'zod';
+Вот названия полей для Zod схемы на основе данных формы:
 
-const EMPTY_MESSAGE = "EMPTY_MESSAGE";
+Страхователь (PolicyHolder):
 
-// Исходная схема
-const physicalSchema = z.object({
-  name: z.string().min(1, { message: EMPTY_MESSAGE }),
-  email: z.string().email().min(1, { message: EMPTY_MESSAGE }),
-});
+1. program — Выбор программы
+2. fullName — ФИО
+3. birthDate — Дата рождения
+4. gender — Пол
+5. isResident — Резидент РФ
+6. documentType — Тип документа
+7. departmentCode — Код подразделения
+8. passportSeries — Серия паспорта
+9. passportNumber — Номер паспорта
+10. issueDate — Дата выдачи
+11. registrationAddress — Адрес регистрации
+12. issuedBy — Кем выдан
+13. email — Электронная почта
+14. phone — Телефон
+15. isMainEmail — Основной email
+16. isMainPhone — Основной телефон
+17. isSameAsInsured — Страхователь и Застрахованный — одно лицо
 
-// Функция для добавления префиксов
-function createPrefixedSchema<T extends z.ZodObject<any>>(
-  schema: T,
-  prefix: string
-) {
-  const shape = schema.shape;
-  const prefixedShape: Record<string, z.ZodTypeAny> = {};
-  
-  Object.keys(shape).forEach((key) => {
-    prefixedShape[`${prefix}_${key}`] = shape[key];
-  });
-  
-  return z.object(prefixedShape);
-}
+Застрахованный (InsuredPerson):
 
-// Создаем схему с префиксом
-const userPhysicalSchema = createPrefixedSchema(physicalSchema, "user");
+1. fullName — ФИО
+2. birthDate — Дата рождения
+3. gender — Пол
+4. isResident — Резидент
 
-// Тип вывода
-type UserPhysicalSchema = z.infer<typeof userPhysicalSchema>;
-// Теперь тип имеет ключи: user_name, user_email
-
-// Получаем ключи
-const keys = Object.keys(userPhysicalSchema.shape) as Array<keyof UserPhysicalSchema>;
-// keys = ["user_name", "user_email"]
+Все поля соответствуют структуре формы и могут быть использованы для валидации с помощью Zod.
