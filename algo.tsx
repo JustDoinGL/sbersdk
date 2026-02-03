@@ -1,13 +1,30 @@
-import { z } from "zod";
-import { driversSchema } from "./driver_card/schema";
+export const getOrdinalNumber = (value: number) => {
+    const lastDigit = value % 10;
+    const lastTwoDigits = value % 100;
+    
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+        return `${value}-й`;
+    }
+    
+    switch (lastDigit) {
+        case 1: return `${value}-й`;
+        case 2: return `${value}-й`;
+        case 3: return `${value}-й`;
+        case 4: return `${value}-й`;
+        default: return `${value}-й`;
+    }
+};
 
-export const driversFormSchema = z.discriminatedUnion("insuranceScope", [
-  z.object({
-    insuranceScope: z.literal(true),
-    drivers: z.array(driversSchema).min(1, "При insuranceScope: true требуется хотя бы один водитель"),
-  }),
-  z.object({
-    insuranceScope: z.literal(false),
-    drivers: z.array(driversSchema).optional(), // или .nullable() в зависимости от нужд
-  }),
-]);
+// Или полный вариант с прописью:
+export const getOrdinalWord = (value: number) => {
+    const ordinals = [
+        "нулевой", "первый", "второй", "третий", "четвёртый", 
+        "пятый", "шестой", "седьмой", "восьмой", "девятый", 
+        "десятый", "одиннадцатый", "двенадцатый", "тринадцатый", 
+        "четырнадцатый", "пятнадцатый", "шестнадцатый", 
+        "семнадцатый", "восемнадцатый", "девятнадцатый", 
+        "двадцатый"
+    ];
+    
+    return ordinals[value] || `${value}-й`;
+};
