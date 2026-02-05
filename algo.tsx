@@ -1,169 +1,272 @@
-import { useSyncExternalStore, useCallback } from 'react';
+import { useSyncExternalStore } from 'react';
+import { useForm } from 'react-hook-form';
 
-// 1. Конфигурация шагов (задаётся в начале)
-const stepsConfig = [
+// 1. Типы (для TypeScript)
+/*
+interface StepConfig {
+  id: number;
+  component: React.ComponentType<any>;
+  formKeys: string[]; // Ключи для react-hook-form
+  buttons: Array<{
+    id: string;
+    label: string;
+    action?: () => void;
+    validate?: boolean; // Нужна ли валидация перед действием
+  }>;
+  title?: string;
+  description?: string;
+}
+*/
+
+// 2. Конфигурация хранилища с react-hook-form
+function createWizardStore(initialSteps) {
+  let currentStep = 0;
+  let steps = initialSteps;
+  let formData = {};
+  let listeners = [];
+  
+  // Инициализируем formData для всех ключей
+  steps.forEach(step => {
+    step.formKeys.forEach(key => {
+      formData[key] = '';
+    });
+  });
+  
+  const store = {
+    getSnapshot() {
+      const currentStepConfig = steps[currentStep];
+      return {
+        currentStep,
+        stepConfig: currentStepConfig,
+        allSteps: steps,
+        // Триггеры только для текущего шага
+        triggers: currentStepConfig.formKeys.reduce((acc, key) => {
+          acc[key] = formData[key];
+          return acc;
+        }, {}),
+        // Все данные формы
+        allFormData: { ...formData },
+        // Проверка валидности текущего шага
+        isStepValid: () => {
+          return currentStepConfig.formKeys.every(key => 
+            formData[key] && formData[key].toString().trim() !== ''
+          );
+        }
+      };
+    },
+    
+    subscribe(listener) {
+      listeners.push(listener);
+      return () => {
+        listeners = listeners.filter(l => l !== listener);
+      };
+    },
+    
+    updateFormData(data) {
+      formData = { ...formData, ...data };
+      this.notify();
+    },
+    
+    setStep(stepIndex) {
+      if (stepIndex >= 0 && stepIndex < steps.length) {
+        currentStep = stepIndex;
+        this.notify();
+      }
+    },
+    
+    nextStep() {
+      if (currentStep < steps.length - 1) {
+        currentStep++;
+        this.notify();
+        return true;
+      }
+      return false;
+    },
+    
+    prevStep() {
+      if (currentStep > 0) {
+        currentStep--;
+        this.notify();
+        return true;
+      }
+      return false;
+    },
+    
+    handleButtonAction(buttonId, formMethods) {
+      const config = steps[currentStep];
+      const button = config.buttons.find(b => b.id === buttonId);
+      
+      if (!button) return;
+      
+      // Если кнопка требует валидации
+      if (button.validate && formMethods) {
+        // Валидируем только поля текущего шага
+        const isValid = config.formKeys.every(key => {
+          const value = formMethods.getValues(key);
+          return value && value.toString().trim() !== '';
+        });
+        
+        if (!isValid) {
+          formMethods.trigger(config.formKeys);
+          return;
+        }
+      }
+      
+      // Выполняем кастомное действие или стандартное
+      if (button.action) {
+        button.action(formData);
+      } else {
+        switch(buttonId) {
+          case 'next':
+            this.nextStep();
+            break;
+          case 'back':
+            this.prevStep();
+            break;
+          case 'submit':
+            console.log('Отправка формы:', formData);
+            break;
+        }
+      }
+    },
+    
+    notify() {
+      listeners.forEach(listener => listener());
+    }
+  };
+  
+  return store;
+}
+
+// 3. Кастомный хук для интеграции
+function useWizardWithForm(stepsConfig) {
+  const [store] = React.useState(() => createWizardStore(stepsConfig));
+  
+  // React Hook Form
+  const formMethods = useForm({
+    mode: 'onChange',
+    defaultValues: stepsConfig.reduce((acc, step) => {
+      step.formKeys.forEach(key => {
+        acc[key] = '';
+      });
+      return acc;
+    }, {})
+  });
+  
+  // Подписываемся на изменения формы
+  const formValues = formMethods.watch();
+  React.useEffect(() => {
+    store.updateFormData(formValues);
+  }, [formValues, store]);
+  
+  const snapshot = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot
+  );
+  
+  return {
+    ...snapshot,
+    formMethods,
+    store,
+    // Вспомогательные методы
+    nextStep: () => {
+      if (snapshot.isStepValid()) {
+        store.nextStep();
+      } else {
+        formMethods.trigger(snapshot.stepConfig.formKeys);
+      }
+    },
+    prevStep: store.prevStep,
+    goToStep: store.setStep,
+    handleButton: (buttonId) => {
+      store.handleButtonAction(buttonId, formMethods);
+    }
+  };
+}
+
+// 4. Пример конфигурации
+const registrationSteps = [
   {
     id: 0,
-    // Компонент для этого шага
     component: PersonalInfoStep,
-    // Тексты кнопок для этого шага
+    formKeys: ['firstName', 'lastName', 'email'],
     buttons: [
-      { id: 'skip', label: 'Пропустить', variant: 'secondary' },
-      { id: 'next', label: 'Далее', variant: 'primary' }
+      { id: 'next', label: 'Далее', validate: true }
     ],
-    // Ключи-триггеры для валидации/действий
-    triggers: ['name', 'email', 'phone'],
-    // Текст шага (опционально)
-    text: 'Заполните личную информацию'
+    title: 'Личная информация',
+    description: 'Заполните основные данные'
   },
   {
     id: 1,
     component: AddressStep,
+    formKeys: ['address', 'city', 'postalCode', 'country'],
     buttons: [
       { id: 'back', label: 'Назад' },
-      { id: 'save', label: 'Сохранить черновик' },
-      { id: 'next', label: 'Продолжить' }
+      { id: 'next', label: 'Продолжить', validate: true }
     ],
-    triggers: ['address', 'city', 'postalCode'],
-    text: 'Укажите ваш адрес'
+    title: 'Адрес доставки'
   },
   {
     id: 2,
     component: PaymentStep,
+    formKeys: ['cardNumber', 'expiry', 'cvc', 'cardholder'],
     buttons: [
       { id: 'back', label: 'Назад' },
-      { id: 'pay', label: 'Оплатить сейчас' },
-      { id: 'later', label: 'Оплатить позже' }
+      { id: 'submit', label: 'Оформить заказ', validate: true }
     ],
-    triggers: ['cardNumber', 'expiry', 'cvc'],
-    text: 'Введите платежные данные'
-  },
-  {
-    id: 3,
-    component: ConfirmationStep,
-    buttons: [
-      { id: 'back', label: 'Назад' },
-      { id: 'confirm', label: 'Подтвердить заказ' }
-    ],
-    triggers: ['acceptTerms', 'newsletter'],
-    text: 'Подтвердите введенные данные'
+    title: 'Оплата'
   }
 ];
 
-// 2. Внешнее хранилище
-let currentStep = 0;
-let listeners = [];
-
-// Дополнительное состояние для триггеров
-let triggerValues = {};
-stepsConfig.forEach(step => {
-  step.triggers.forEach(trigger => {
-    triggerValues[trigger] = '';
-  });
-});
-
-const wizardStore = {
-  getSnapshot() {
-    const config = stepsConfig[currentStep];
-    return {
-      currentStep,
-      stepConfig: config,
-      allSteps: stepsConfig,
-      // Динамические значения триггеров для текущего шага
-      triggers: stepConfig.triggers.reduce((acc, trigger) => {
-        acc[trigger] = triggerValues[trigger];
-        return acc;
-      }, {}),
-      // Все значения триггеров (опционально)
-      allTriggerValues: { ...triggerValues }
-    };
-  },
+// 5. Главный компонент Wizard
+function RegistrationWizard() {
+  const { 
+    currentStep, 
+    stepConfig, 
+    triggers,
+    formMethods,
+    handleButton,
+    isStepValid 
+  } = useWizardWithForm(registrationSteps);
   
-  subscribe(listener) {
-    listeners.push(listener);
-    return () => {
-      listeners = listeners.filter(l => l !== listener);
-    };
-  },
-  
-  goToStep(stepIndex) {
-    if (stepIndex >= 0 && stepIndex < stepsConfig.length) {
-      currentStep = stepIndex;
-      this.notify();
-    }
-  },
-  
-  nextStep() {
-    if (currentStep < stepsConfig.length - 1) {
-      currentStep++;
-      this.notify();
-    }
-  },
-  
-  prevStep() {
-    if (currentStep > 0) {
-      currentStep--;
-      this.notify();
-    }
-  },
-  
-  // Обновление значения триггера
-  updateTrigger(triggerKey, value) {
-    triggerValues[triggerKey] = value;
-    this.notify();
-  },
-  
-  // Выполнение действия кнопки
-  handleButtonAction(buttonId) {
-    const config = stepsConfig[currentStep];
-    
-    switch(buttonId) {
-      case 'next':
-        this.nextStep();
-        break;
-      case 'back':
-        this.prevStep();
-        break;
-      case 'skip':
-        // Пропустить валидацию текущих триггеров
-        this.nextStep();
-        break;
-      case 'save':
-        // Сохранение черновика
-        console.log('Сохранение триггеров:', triggerValues);
-        break;
-      // ... другие обработчики
-      default:
-        console.log('Действие кнопки:', buttonId);
-    }
-  },
-  
-  notify() {
-    listeners.forEach(listener => listener());
-  }
-};
-
-// 3. Компонент StepComponent
-function StepComponent({ config, triggers, onTriggerUpdate, onButtonClick }) {
-  const { component: StepComponent } = config;
+  const CurrentStepComponent = stepConfig.component;
   
   return (
-    <div className="step">
-      <h2>{config.text}</h2>
+    <div className="wizard">
+      {/* Прогресс бар */}
+      <div className="progress">
+        {registrationSteps.map((step, index) => (
+          <div 
+            key={step.id} 
+            className={`step ${index === currentStep ? 'active' : ''}`}
+            onClick={() => isStepValid() && store.setStep(index)}
+          >
+            {index + 1}
+          </div>
+        ))}
+      </div>
       
-      {/* Рендерим компонент шага */}
-      <StepComponent 
-        triggers={triggers}
-        onUpdate={onTriggerUpdate}
-      />
+      {/* Заголовок шага */}
+      <h2>{stepConfig.title}</h2>
+      {stepConfig.description && <p>{stepConfig.description}</p>}
       
-      {/* Кнопки навигации */}
-      <div className="step-buttons">
-        {config.buttons.map(button => (
+      {/* Форма */}
+      <form>
+        <CurrentStepComponent 
+          formMethods={formMethods}
+          triggers={triggers}
+        />
+      </form>
+      
+      {/* Кнопки */}
+      <div className="wizard-buttons">
+        {stepConfig.buttons.map(button => (
           <button
             key={button.id}
-            className={`btn ${button.variant || 'default'}`}
-            onClick={() => onButtonClick(button.id)}
+            type="button"
+            onClick={() => handleButton(button.id)}
+            className={button.id}
+            disabled={button.validate && !isStepValid()}
           >
             {button.label}
           </button>
@@ -173,100 +276,142 @@ function StepComponent({ config, triggers, onTriggerUpdate, onButtonClick }) {
   );
 }
 
-// 4. Главный компонент Wizard
-function Wizard() {
-  const { currentStep, stepConfig, triggers } = useSyncExternalStore(
-    wizardStore.subscribe,
-    wizardStore.getSnapshot
+// 6. Пример компонента шага с react-hook-form
+function PersonalInfoStep({ formMethods, triggers }) {
+  const { register, formState: { errors } } = formMethods;
+  
+  return (
+    <div className="step-content">
+      <div className="form-group">
+        <label>Имя *</label>
+        <input
+          {...register('firstName', { 
+            required: 'Имя обязательно' 
+          })}
+          className={errors.firstName ? 'error' : ''}
+        />
+        {errors.firstName && (
+          <span className="error-message">{errors.firstName.message}</span>
+        )}
+      </div>
+      
+      <div className="form-group">
+        <label>Фамилия</label>
+        <input {...register('lastName')} />
+      </div>
+      
+      <div className="form-group">
+        <label>Email *</label>
+        <input
+          {...register('email', {
+            required: 'Email обязателен',
+            pattern: {
+              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+              message: 'Неверный формат email'
+            }
+          })}
+          className={errors.email ? 'error' : ''}
+        />
+        {errors.email && (
+          <span className="error-message">{errors.email.message}</span>
+        )}
+      </div>
+      
+      {/* Отладочная информация */}
+      <div className="debug-info">
+        <p>Текущие значения: {JSON.stringify(triggers)}</p>
+        <p>Ключи валидации: {JSON.stringify(Object.keys(triggers))}</p>
+      </div>
+    </div>
+  );
+}
+
+// 7. Альтернатива: упрощенный хук
+export function useWizardSteps(stepsConfig) {
+  const store = React.useMemo(() => createWizardStore(stepsConfig), [stepsConfig]);
+  
+  const { 
+    currentStep, 
+    stepConfig, 
+    triggers,
+    allFormData,
+    isStepValid 
+  } = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot
   );
   
-  // Обработчик обновления триггеров
-  const handleTriggerUpdate = useCallback((key, value) => {
-    wizardStore.updateTrigger(key, value);
-  }, []);
-  
-  // Обработчик клика по кнопке
-  const handleButtonClick = useCallback((buttonId) => {
-    wizardStore.handleButtonAction(buttonId);
-  }, []);
-  
-  // Проверка готовности перехода к следующему шагу
-  const isStepValid = () => {
-    return stepConfig.triggers.every(trigger => 
-      triggerValues[trigger] && triggerValues[trigger].trim() !== ''
-    );
+  return {
+    // Текущее состояние
+    currentStep,
+    stepConfig,
+    triggers,
+    allFormData,
+    isStepValid,
+    
+    // Методы
+    setStep: store.setStep,
+    nextStep: store.nextStep,
+    prevStep: store.prevStep,
+    updateFormData: store.updateFormData,
+    handleButtonAction: store.handleButtonAction,
+    
+    // Интеграция с формой
+    getFormConfig: () => ({
+      defaultValues: stepsConfig.reduce((acc, step) => {
+        step.formKeys.forEach(key => {
+          acc[key] = allFormData[key] || '';
+        });
+        return acc;
+      }, {})
+    })
   };
+}
+
+// 8. Использование с useForm
+function YourComponent() {
+  const steps = [
+    {
+      component: Step1,
+      formKeys: ['field1', 'field2'],
+      buttons: [{ id: 'next', label: 'Далее' }]
+    },
+    // ... другие шаги
+  ];
+  
+  const wizard = useWizardSteps(steps);
+  const formMethods = useForm(wizard.getFormConfig());
+  
+  // Синхронизация формы с хранилищем
+  React.useEffect(() => {
+    const subscription = formMethods.watch((values) => {
+      wizard.updateFormData(values);
+    });
+    return () => subscription.unsubscribe();
+  }, [formMethods, wizard]);
+  
+  const CurrentStep = wizard.stepConfig.component;
   
   return (
-    <div className="wizard-container">
-      {/* Индикатор прогресса */}
-      <div className="progress-indicator">
-        {stepsConfig.map((step, index) => (
-          <div
-            key={step.id}
-            className={`step-indicator ${index === currentStep ? 'active' : ''}`}
-            onClick={() => wizardStore.goToStep(index)}
-          >
-            <span>Шаг {index + 1}</span>
-            <div className="step-title">{step.text}</div>
-          </div>
-        ))}
-      </div>
-      
-      {/* Текущий шаг */}
-      <StepComponent
-        config={stepConfig}
-        triggers={triggers}
-        onTriggerUpdate={handleTriggerUpdate}
-        onButtonClick={handleButtonClick}
+    <form>
+      <CurrentStep 
+        formMethods={formMethods}
+        triggers={wizard.triggers}
       />
       
-      {/* Дополнительная информация */}
-      <div className="step-info">
-        <p>Текущие триггеры: {stepConfig.triggers.join(', ')}</p>
-        <p>Шаг {currentStep + 1} из {stepsConfig.length}</p>
-      </div>
-    </div>
+      {wizard.stepConfig.buttons.map(button => (
+        <button
+          key={button.id}
+          onClick={() => wizard.handleButtonAction(button.id, formMethods)}
+        >
+          {button.label}
+        </button>
+      ))}
+    </form>
   );
 }
 
-// 5. Примеры компонентов шагов
-function PersonalInfoStep({ triggers, onUpdate }) {
-  return (
-    <div className="step-content">
-      <input
-        type="text"
-        placeholder="Имя"
-        value={triggers.name || ''}
-        onChange={(e) => onUpdate('name', e.target.value)}
-      />
-      <input
-        type="email"
-        placeholder="Email"
-        value={triggers.email || ''}
-        onChange={(e) => onUpdate('email', e.target.value)}
-      />
-      <input
-        type="tel"
-        placeholder="Телефон"
-        value={triggers.phone || ''}
-        onChange={(e) => onUpdate('phone', e.target.value)}
-      />
-    </div>
-  );
-}
 
-function AddressStep({ triggers, onUpdate }) {
-  return (
-    <div className="step-content">
-      <textarea
-        placeholder="Адрес"
-        value={triggers.address || ''}
-        onChange={(e) => onUpdate('address', e.target.value)}
-      />
-      {/* ... другие поля */}
-    </div>
-  );
-}
 
-// ... остальные компоненты шагов
+
+
