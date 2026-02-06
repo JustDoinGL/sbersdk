@@ -1,35 +1,35 @@
-import { useCallback, useSyncExternalStore } from 'react';
+// Source - https://stackoverflow.com/a/77832557
+// Posted by demux, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-02-06, License - CC BY-SA 4.0
 
-const getServerSnapshot = () => false;
+import type { ZodSchema } from 'zod';
 
-/**
- * @name useMediaQuery
- * @description - Hook that manages a media query
- * @category Browser
- * @usage medium
- *
- * @browserapi window.matchMedia https://developer.mozilla.org/en-US/docs/Web/API/Window/matchMedia
- *
- * @param {string} query The media query string
- * @returns {boolean} A boolean indicating if the media query matches
- *
- * @example
- * const matches = useMediaQuery('(max-width: 768px)');
- */
-export const useMediaQuery = (query: string) => {
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      const matchMedia = window.matchMedia(query);
+type ZodSchemaFields = { [K: string]: ZodSchemaFields | true };
+type DirtyZodSchemaFields = { [K: string]: DirtyZodSchemaFields };
 
-      matchMedia.addEventListener('change', callback);
-      return () => {
-        matchMedia.removeEventListener('change', callback);
-      };
-    },
-    [query]
-  );
-
-  const getSnapshot = () => window.matchMedia(query).matches;
-
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+const _proxyHandler = {
+  get(fields: DirtyZodSchemaFields, key: string | symbol) {
+    if (key === 'then' || typeof key !== 'string') {
+      return;
+    }
+    if (!fields[key]) {
+      fields[key] = new Proxy({}, _proxyHandler);
+    }
+    return fields[key];
+  },
 };
+
+function _clean(fields: DirtyZodSchemaFields) {
+  const cleaned: ZodSchemaFields = {};
+  Object.keys(fields).forEach((k) => {
+    const val = fields[k];
+    cleaned[k] = Object.keys(val).length ? _clean(val) : true;
+  });
+  return cleaned;
+}
+
+export function getZodSchemaFields(schema: ZodSchema): ZodSchemaFields {
+  const fields = {};
+  schema.safeParse(new Proxy(fields, _proxyHandler));
+  return _clean(fields);
+}
