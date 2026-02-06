@@ -1,35 +1,33 @@
-// Source - https://stackoverflow.com/a/77832557
-// Posted by demux, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-02-06, License - CC BY-SA 4.0
-
-import type { ZodSchema } from 'zod';
-
-type ZodSchemaFields = { [K: string]: ZodSchemaFields | true };
-type DirtyZodSchemaFields = { [K: string]: DirtyZodSchemaFields };
-
-const _proxyHandler = {
-  get(fields: DirtyZodSchemaFields, key: string | symbol) {
-    if (key === 'then' || typeof key !== 'string') {
-      return;
+function getAllKeys(obj, prefix = '') {
+  const keys = [];
+  
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const fullPath = prefix ? `${prefix}.${key}` : key;
+      keys.push(fullPath);
+      
+      if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+        keys.push(...getAllKeys(obj[key], fullPath));
+      }
     }
-    if (!fields[key]) {
-      fields[key] = new Proxy({}, _proxyHandler);
+  }
+  
+  return keys;
+}
+
+// Пример использования
+const data = {
+  name: 'John',
+  address: {
+    street: 'Main St',
+    city: 'NYC',
+    geo: {
+      lat: 40.7128,
+      lng: -74.0060
     }
-    return fields[key];
   },
+  tags: ['js', 'ts']
 };
 
-function _clean(fields: DirtyZodSchemaFields) {
-  const cleaned: ZodSchemaFields = {};
-  Object.keys(fields).forEach((k) => {
-    const val = fields[k];
-    cleaned[k] = Object.keys(val).length ? _clean(val) : true;
-  });
-  return cleaned;
-}
-
-export function getZodSchemaFields(schema: ZodSchema): ZodSchemaFields {
-  const fields = {};
-  schema.safeParse(new Proxy(fields, _proxyHandler));
-  return _clean(fields);
-}
+console.log(getAllKeys(data));
+// ['name', 'address', 'address.street', 'address.city', 'address.geo', 'address.geo.lat', 'address.geo.lng']
