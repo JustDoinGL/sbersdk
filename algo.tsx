@@ -1,49 +1,68 @@
-import { useState } from 'react';
+// hooks/useLicensePlateMask.ts
+import { useState, useCallback } from 'react';
 
-function LicensePlateInput() {
-  const [plate, setPlate] = useState('');
-  
-  const handleChange = (e) => {
-    const value = e.target.value;
+export const useLicensePlateMask = (defaultValue = '') => {
+  const [displayValue, setDisplayValue] = useState(
+    defaultValue ? formatLicensePlate(defaultValue) : ''
+  );
+
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    const formatted = formatLicensePlate(inputValue);
+    setDisplayValue(formatted);
     
-    // Разрешаем только буквы, цифры и пробел
-    if (!/^[A-ZА-Яa-zа-я0-9\s]*$/.test(value)) return;
-    
-    // Форматируем
-    let clean = value.toUpperCase().replace(/[^A-ZА-Я0-9]/g, '');
-    let formatted = '';
-    
-    // Первая буква
-    if (clean.length > 0) {
-      formatted = clean[0];
+    // Возвращаем очищенное значение для формы
+    return cleanLicensePlate(inputValue);
+  }, []);
+
+  const onBlur = useCallback((value: string) => {
+    // Можно добавить дополнительные проверки при потере фокуса
+    if (value && value.length < 9) {
+      console.warn('Неполный номер');
     }
-    
-    // Три цифры
-    if (clean.length > 1) {
-      formatted += ' ' + clean.substring(1, 4);
-    }
-    
-    // Две буквы
-    if (clean.length >= 4) {
-      formatted += ' ' + clean.substring(4, 6);
-    }
-    
-    // Три цифры
-    if (clean.length >= 6) {
-      formatted += ' ' + clean.substring(6, 9);
-    }
-    
-    setPlate(formatted);
+  }, []);
+
+  return {
+    displayValue,
+    onChange,
+    onBlur,
+    setDisplayValue,
   };
-  
+};
+
+// Компонент с использованием хука
+export const AutoStateNumberInputV2 = <T extends FieldValues>({
+  name,
+  control,
+  ...props
+}: AutoStateNumberInputProps<T>) => {
+  const licensePlateMask = useLicensePlateMask();
+
   return (
-    <input
-      type="text"
-      value={plate}
-      onChange={handleChange}
-      placeholder="A 123 BC 456"
-      maxLength={12}
-      style={{ textTransform: 'uppercase' }}
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => {
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const cleanedValue = licensePlateMask.onChange(e);
+          field.onChange(cleanedValue);
+        };
+
+        const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+          licensePlateMask.onBlur(cleanLicensePlate(e.target.value));
+          field.onBlur();
+        };
+
+        return (
+          <Input
+            {...field}
+            {...props}
+            value={licensePlateMask.displayValue}
+            onChange={handleChange}
+            onBlur={handleBlur}
+          />
+        );
+      }}
     />
   );
-}
+};
