@@ -1,68 +1,50 @@
-// hooks/useLicensePlateMask.ts
-import { useState, useCallback } from 'react';
-
-export const useLicensePlateMask = (defaultValue = '') => {
-  const [displayValue, setDisplayValue] = useState(
-    defaultValue ? formatLicensePlate(defaultValue) : ''
-  );
-
-  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputValue = e.target.value;
-    const formatted = formatLicensePlate(inputValue);
-    setDisplayValue(formatted);
-    
-    // Возвращаем очищенное значение для формы
-    return cleanLicensePlate(inputValue);
-  }, []);
-
-  const onBlur = useCallback((value: string) => {
-    // Можно добавить дополнительные проверки при потере фокуса
-    if (value && value.length < 9) {
-      console.warn('Неполный номер');
-    }
-  }, []);
-
-  return {
-    displayValue,
-    onChange,
-    onBlur,
-    setDisplayValue,
-  };
+export const AutostateNumberMask = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 1. Убираем всё кроме букв и цифр
+  let value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  
+  // 2. Ограничиваем длину (A123AA123 - 9 символов)
+  if (value.length > 9) {
+    value = value.slice(0, 9);
+  }
+  
+  // 3. Форматируем по маске: X XXX XX XXX
+  const parts = [];
+  
+  if (value.length > 0) {
+    parts.push(value[0]); // Первая буква
+  }
+  
+  if (value.length > 1) {
+    parts.push(value.slice(1, Math.min(4, value.length))); // Три цифры
+  }
+  
+  if (value.length > 4) {
+    parts.push(value.slice(4, Math.min(6, value.length))); // Две буквы/цифры
+  }
+  
+  if (value.length > 6) {
+    parts.push(value.slice(6, 9)); // Три цифры
+  }
+  
+  return parts.join(' ');
 };
 
-// Компонент с использованием хука
-export const AutoStateNumberInputV2 = <T extends FieldValues>({
-  name,
-  control,
-  ...props
-}: AutoStateNumberInputProps<T>) => {
-  const licensePlateMask = useLicensePlateMask();
-
+export const AutostateNumberInput = <FormData extends FieldValues>(props: Props<FormData>) => {
+  const [plate, setPlate] = useState('');
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = AutostateNumberMask(e);
+    setPlate(formatted);
+  };
+  
   return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field, fieldState }) => {
-        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-          const cleanedValue = licensePlateMask.onChange(e);
-          field.onChange(cleanedValue);
-        };
-
-        const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-          licensePlateMask.onBlur(cleanLicensePlate(e.target.value));
-          field.onBlur();
-        };
-
-        return (
-          <Input
-            {...field}
-            {...props}
-            value={licensePlateMask.displayValue}
-            onChange={handleChange}
-            onBlur={handleBlur}
-          />
-        );
-      }}
+    <input
+      type="text"
+      value={plate}
+      onChange={handleChange}
+      placeholder="A 123 AA 123"
+      maxLength={13} // 9 символов + 3 пробела
+      className="your-styles"
     />
   );
 };
