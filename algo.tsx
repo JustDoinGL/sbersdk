@@ -1,109 +1,49 @@
-import { useSyncExternalStore } from 'react';
+import { useState } from 'react';
 
-// Типы для хранилища
-type State = {
-  count: number;
-  data: string[];
-  isLoading: boolean;
-};
-
-type Store = {
-  getState: () => State;
-  subscribe: (listener: () => void) => () => void;
-  increment: () => void;
-  decrement: () => void;
-  addItem: (item: string) => void;
-  removeItem: (index: number) => void;
-  setLoading: (loading: boolean) => void;
-};
-
-// Создаем хранилище
-const createStore = (initialState: State): Store => {
-  let state = initialState;
-  const listeners = new Set<() => void>();
-
-  const getState = () => state;
-
-  const setState = (newState: State) => {
-    state = newState;
-    listeners.forEach(listener => listener());
-  };
-
-  const subscribe = (listener: () => void) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
-
-  // Методы для изменения состояния
-  const increment = () => {
-    setState({
-      ...state,
-      count: state.count + 1
-    });
-  };
-
-  const decrement = () => {
-    setState({
-      ...state,
-      count: state.count - 1
-    });
-  };
-
-  const addItem = (item: string) => {
-    setState({
-      ...state,
-      data: [...state.data, item]
-    });
-  };
-
-  const removeItem = (index: number) => {
-    setState({
-      ...state,
-      data: state.data.filter((_, i) => i !== index)
-    });
-  };
-
-  const setLoading = (loading: boolean) => {
-    setState({
-      ...state,
-      isLoading: loading
-    });
-  };
-
-  return {
-    getState,
-    subscribe,
-    increment,
-    decrement,
-    addItem,
-    removeItem,
-    setLoading
-  };
-};
-
-// Создаем экземпляр хранилища
-const store = createStore({
-  count: 0,
-  data: [],
-  isLoading: false
-});
-
-// Хук для использования в компонентах
-export const useStore = () => {
-  const state = useSyncExternalStore(
-    store.subscribe,
-    store.getState
-  );
-
-  // Возвращаем состояние и методы
-  return {
-    state,
-    methods: {
-      increment: store.increment,
-      decrement: store.decrement,
-      addItem: store.addItem,
-      removeItem: store.removeItem,
-      setLoading: store.setLoading
+function LicensePlateInput() {
+  const [plate, setPlate] = useState('');
+  
+  const handleChange = (e) => {
+    const value = e.target.value;
+    
+    // Разрешаем только буквы, цифры и пробел
+    if (!/^[A-ZА-Яa-zа-я0-9\s]*$/.test(value)) return;
+    
+    // Форматируем
+    let clean = value.toUpperCase().replace(/[^A-ZА-Я0-9]/g, '');
+    let formatted = '';
+    
+    // Первая буква
+    if (clean.length > 0) {
+      formatted = clean[0];
     }
+    
+    // Три цифры
+    if (clean.length > 1) {
+      formatted += ' ' + clean.substring(1, 4);
+    }
+    
+    // Две буквы
+    if (clean.length >= 4) {
+      formatted += ' ' + clean.substring(4, 6);
+    }
+    
+    // Три цифры
+    if (clean.length >= 6) {
+      formatted += ' ' + clean.substring(6, 9);
+    }
+    
+    setPlate(formatted);
   };
-};
+  
+  return (
+    <input
+      type="text"
+      value={plate}
+      onChange={handleChange}
+      placeholder="A 123 BC 456"
+      maxLength={12}
+      style={{ textTransform: 'uppercase' }}
+    />
+  );
+}
