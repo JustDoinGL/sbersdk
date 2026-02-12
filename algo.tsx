@@ -1,6 +1,12 @@
-import { z } from 'zod';
-
-const rusAutoNumberSchema = z.string().regex(
-  /^[АВЕКМНОРСТУХ]{1}\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$/,
-  'Некорректный формат номера'
-);
+fullname: {
+  mask: (v: string): string => {
+    return v
+      .replace(/\s+/g, ' ')         // убираем лишние пробелы
+      .trim()                       // обрезаем по краям
+      .split(' ')                  // разбиваем на слова
+      .map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      )
+      .join(' ');                  // собираем обратно
+  }
+}
