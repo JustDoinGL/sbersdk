@@ -1,4 +1,6 @@
 const inputRef = useRef(null);
+const skipNextUpdateRef = useRef(false);
+const lastCursorPosRef = useRef(0);
 
 // В onChange
 onChange={(e) => {
@@ -8,40 +10,70 @@ onChange={(e) => {
     const newValue = input.value;
     
     if (mask?.unmask) {
-        const unmasked = mask.unmask(newValue);
-        field.onChange(unmasked);
+        // Сохраняем позицию до обновления
+        lastCursorPosRef.current = cursorPos;
         
-        setTimeout(() => {
-            if (inputRef.current) {
-                let newCursorPos = cursorPos;
-                
-                // Определяем, был ли удален разделитель
-                const oldChar = oldValue[cursorPos];
-                const isDelimiter = oldChar && /[^0-9a-zA-Z]/.test(oldChar);
-                
-                if (newValue.length < oldValue.length) {
-                    if (isDelimiter) {
-                        // Если удалили разделитель, смещаем курсор на символ назад
-                        newCursorPos = Math.max(0, cursorPos - 1);
-                    } else {
-                        // Если удалили цифру, оставляем курсор на месте
-                        newCursorPos = cursorPos;
+        // Получаем значение без маски
+        const unmasked = mask.unmask(newValue);
+        
+        // Проверяем, это пользовательский ввод или программное обновление
+        if (!skipNextUpdateRef.current) {
+            field.onChange(unmasked);
+            
+            setTimeout(() => {
+                if (inputRef.current) {
+                    const maskedValue = mask.mask(unmasked);
+                    let newCursorPos = lastCursorPosRef.current;
+                    
+                    // Корректируем позицию для разных случаев
+                    if (newValue.length > oldValue.length) {
+                        // Добавление символа
+                        newCursorPos = Math.min(cursorPos + 1, maskedValue.length);
+                    } else if (newValue.length < oldValue.length) {
+                        // Удаление символа
+                        newCursorPos = Math.min(cursorPos, maskedValue.length);
                     }
                     
-                    // Дополнительная проверка для удаления с конца
-                    if (cursorPos === oldValue.length) {
-                        newCursorPos = newValue.length;
+                    // Проверяем, не стоим ли мы на разделителе
+                    if (newCursorPos < maskedValue.length) {
+                        const charAtPos = maskedValue[newCursorPos];
+                        if (charAtPos && /[^0-9a-zA-Z]/.test(charAtPos)) {
+                            // Если стоим на разделителе, перепрыгиваем
+                            if (newValue.length > oldValue.length) {
+                                newCursorPos = Math.min(newCursorPos + 1, maskedValue.length);
+                            }
+                        }
                     }
-                } else if (newValue.length > oldValue.length) {
-                    // При добавлении символа
-                    newCursorPos = cursorPos + 1;
+                    
+                    inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
                 }
-                
-                inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-            }
-        }, 0);
+                skipNextUpdateRef.current = false;
+            }, 0);
+        }
     } else {
         field.onChange(newValue);
+    }
+}}
+
+// Отслеживаем все клавиши навигации
+onKeyDown={(e) => {
+    const navigationKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+    
+    if (navigationKeys.includes(e.key)) {
+        // Даем событию клавиатуры обработаться
+        setTimeout(() => {
+            if (inputRef.current) {
+                // Просто запоминаем позицию, не меняем её
+                lastCursorPosRef.current = inputRef.current.selectionStart;
+            }
+        }, 0);
+    }
+}}
+
+// Предотвращаем скачки при программном обновлении
+onFocus={(e) => {
+    if (inputRef.current) {
+        lastCursorPosRef.current = inputRef.current.selectionStart;
     }
 }}
 
@@ -49,80 +81,8 @@ value={mask?.mask ? mask.mask(field.value ?? '') : field.value}
 ref={(ref) => {
     if (ref) {
         inputRef.current = ref;
-        // Передаем ref дальше если нужно
         if (typeof ref === 'object' && field.ref) {
             field.ref(ref);
         }
     }
 }}
-
-
-
-
-
-
-
-return (
-    <div className={wrapperClassName}>
-        <Input
-            {...rest}
-            {...field}
-            onBlur={(e) => {
-                const value = e.target.value;
-                if (mask?.unmask) {
-                    field.onChange(mask.unmask(value.trim()));
-                } else {
-                    field.onChange(value);
-                }
-                onBlur();
-            }}
-            hasError={!IFieldState.error}
-            onChange={(e) => {
-                const input = e.target;
-                const cursorPos = input.selectionStart; // Сохраняем позицию курсора
-                const oldValue = input.value;
-                const newValue = input.value;
-                
-                if (mask?.unmask) {
-                    const unmasked = mask.unmask(newValue);
-                    field.onChange(unmasked);
-                    
-                    // Восстанавливаем позицию курсора после обновления
-                    setTimeout(() => {
-                        if (input) {
-                            // Рассчитываем новую позицию с учетом разделителей маски
-                            let newCursorPos = cursorPos;
-                            
-                            // Если удаляли символ
-                            if (newValue.length < oldValue.length) {
-                                // Оставляем курсор на том же месте
-                                newCursorPos = cursorPos;
-                            }
-                            // Если добавляли символ
-                            else if (newValue.length > oldValue.length) {
-                                // Сдвигаем курсор вперед
-                                newCursorPos = cursorPos + 1;
-                            }
-                            
-                            input.setSelectionRange(newCursorPos, newCursorPos);
-                        }
-                    }, 0);
-                } else {
-                    field.onChange(newValue);
-                }
-            }}
-            value={mask?.mask ? mask.mask(field.value ?? '') : field.value}
-            ref={(ref) => {
-                // Сохраняем ref для доступа к input
-                if (ref) {
-                    inputRef.current = ref;
-                }
-            }}
-        />
-        {fieldState.error?.message && (
-            <ErrorMessage message={errorMessage ?? fieldState.error?.message} />
-        )}
-    </div>
-);
-
-
