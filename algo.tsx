@@ -1,12 +1,20 @@
-fullname: {
-  mask: (v: string): string => {
-    return v
-      .replace(/\s+/g, ' ')         // убираем лишние пробелы
-      .trim()                       // обрезаем по краям
-      .split(' ')                  // разбиваем на слова
-      .map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      )
-      .join(' ');                  // собираем обратно
-  }
+// Наблюдаем за появлением конкретного элемента
+function waitForElement(selector, callback) {
+  const observer = new MutationObserver((mutations) => {
+    const element = document.querySelector(selector);
+    if (element) {
+      observer.disconnect();
+      callback(element);
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
 }
+
+// Использование
+waitForElement('#my-button', (element) => {
+  console.log('Элемент появился в DOM:', element);
+});
