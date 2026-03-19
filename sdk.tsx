@@ -1,33 +1,20 @@
-function getAllKeys(obj, prefix = '') {
-  const keys = [];
-  
-  for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      const fullPath = prefix ? `${prefix}.${key}` : key;
-      keys.push(fullPath);
-      
-      if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-        keys.push(...getAllKeys(obj[key], fullPath));
-      }
-    }
-  }
-  
-  return keys;
-}
+import { useState } from 'react';
 
-// Пример использования
-const data = {
-  name: 'John',
-  address: {
-    street: 'Main St',
-    city: 'NYC',
-    geo: {
-      lat: 40.7128,
-      lng: -74.0060
-    }
-  },
-  tags: ['js', 'ts']
-};
+// Тип для способа подписания (альтернативный)
+type SigningOption = 'PEP' | 'inPerson' | 'remote' | 'scan';
 
-console.log(getAllKeys(data));
-// ['name', 'address', 'address.street', 'address.city', 'address.geo', 'address.geo.lat', 'address.geo.lng']
+// Первый useState
+const [signingOption, setSigningOption] = useState<SigningOption>('PEP');
+
+// Функции изменения
+const selectPEP = () => setSigningOption('PEP');
+const selectInPerson = () => setSigningOption('inPerson');
+const selectRemote = () => setSigningOption('remote');
+const selectScan = () => setSigningOption('scan');
+
+// Второй useState для отслеживания выбранного документа
+const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+
+// Функции изменения
+const handleSelectDocument = (id: string) => setSelectedDocumentId(id);
+const handleClearSelectedDocument = () => setSelectedDocumentId(null);
