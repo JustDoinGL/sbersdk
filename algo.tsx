@@ -1,4 +1,5 @@
-import { useEffect, useState, RefObject } from 'react';
+
+import { useEffect, useState, RefObject, useCallback } from 'react';
 
 interface UseActiveScrollIndexProps {
   /** Количество элементов */
@@ -7,88 +8,138 @@ interface UseActiveScrollIndexProps {
   threshold?: number;
   /** Начинать отсчет с 0 или с 1 */
   startFromZero?: boolean;
+  /** Дебаунс для оптимизации */
+  debounceMs?: number;
+  /** Колбэк при смене индекса */
+  onIndexChange?: (index: number) => void;
 }
 
 /**
- * Хук для определения активного элемента по скроллу внутри контейнера
- * @param containerRef - реф на элемент с скроллом
+ * Хук для определения активного элемента по горизонтальному скроллу внутри контейнера
+ * @param containerRef - реф на элемент с горизонтальным скроллом
  * @param options - настройки
  * @returns индекс активного элемента
  */
-function useActiveScrollIndex(
+function useActiveScrollIndexHorizontal(
   containerRef: RefObject<HTMLElement>,
   options: UseActiveScrollIndexProps
 ): number {
-  const { itemsCount, threshold = 35, startFromZero = false } = options;
+  const {
+    itemsCount,
+    threshold = 35,
+    startFromZero = false,
+    debounceMs = 100,
+    onIndexChange,
+  } = options;
+
   const [activeIndex, setActiveIndex] = useState<number>(startFromZero ? 0 : 1);
+
+  const calculateActiveIndex = useCallback((): number => {
+    const container = containerRef.current;
+    if (!container || itemsCount === 0) {
+      return startFromZero ? 0 : 1;
+    }
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    
+    // Если горизонтального скролла нет
+    if (scrollWidth <= clientWidth) {
+      return startFromZero ? 0 : 1;
+    }
+
+    // Максимальная длина горизонтального скролла
+    const maxScrollLeft = scrollWidth - clientWidth;
+    
+    // Текущий процент горизонтальной прокрутки (0-100)
+    const scrollPercent = (scrollLeft / maxScrollLeft) * 100;
+    
+    // Размер одного элемента в процентах
+    const stepPercent = 100 / itemsCount;
+    
+    // Смещение порога: элемент активируется когда скролл достигает
+    // определенного процента внутри его диапазона
+    const thresholdOffset = (threshold / itemsCount);
+    let rawPercent = scrollPercent + thresholdOffset;
+    
+    // Если перевалили за 100%, фиксируем последний элемент
+    if (rawPercent >= 100) {
+      return startFromZero ? itemsCount - 1 : itemsCount;
+    }
+    
+    const index = Math.floor(rawPercent / stepPercent);
+    const clampedIndex = Math.max(0, Math.min(index, itemsCount - 1));
+    
+    return startFromZero ? clampedIndex : clampedIndex + 1;
+  }, [containerRef, itemsCount, threshold, startFromZero]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || itemsCount === 0) return;
+    if (!container) return;
 
-    const calculateActiveIndex = (): number => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      
-      // Если скролла нет
-      if (scrollHeight <= clientHeight) {
-        return startFromZero ? 0 : 1;
-      }
-
-      // Максимальная длина скролла
-      const maxScrollTop = scrollHeight - clientHeight;
-      
-      // Текущий процент прокрутки (0-100)
-      const scrollPercent = (scrollTop / maxScrollTop) * 100;
-      
-      // Размер шага в процентах для каждого элемента
-      const stepPercent = 100 / itemsCount;
-      
-      // Вычисляем индекс элемента
-      // Если threshold = 35, то элемент активируется когда скролл пересекает 35% от его диапазона
-      const adjustedPercent = scrollPercent + (threshold / itemsCount);
-      let index = Math.floor(adjustedPercent / stepPercent);
-      
-      // Ограничиваем индекс
-      index = Math.max(0, Math.min(index, itemsCount - 1));
-      
-      return startFromZero ? index : index + 1;
-    };
-
+    let timeoutId: NodeJS.Timeout;
+    
     const handleScroll = () => {
-      const newIndex = calculateActiveIndex();
-      setActiveIndex(prev => prev !== newIndex ? newIndex : prev);
+      if (debounceMs > 0) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          const newIndex = calculateActiveIndex();
+          setActiveIndex(prev => {
+            if (prev !== newIndex) {
+              onIndexChange?.(newIndex);
+              return newIndex;
+            }
+            return prev;
+          });
+        }, debounceMs);
+      } else {
+        const newIndex = calculateActiveIndex();
+        setActiveIndex(prev => {
+          if (prev !== newIndex) {
+            onIndexChange?.(newIndex);
+            return newIndex;
+          }
+          return prev;
+        });
+      }
     };
 
     container.addEventListener('scroll', handleScroll);
-    handleScroll(); // Вызываем для начального состояния
+    handleScroll(); // Инициализация
 
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [containerRef, itemsCount, threshold, startFromZero]);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, [containerRef, calculateActiveIndex, debounceMs, onIndexChange]);
 
   return activeIndex;
 }
 
-export default useActiveScrollIndex;
+export default useActiveScrollIndexHorizontal;
 
 
 
 
 
 import React, { useRef } from 'react';
-import useActiveScrollIndex from './useActiveScrollIndex';
+import useActiveScrollIndexHorizontal from './useActiveScrollIndexHorizontal';
 
-const ScrollContainer: React.FC = () => {
+const HorizontalScrollDemo: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const itemsCount = 10; // 10 элементов
-  const activeIndex = useActiveScrollIndex(containerRef, {
+  const itemsCount = 8;
+  
+  const activeIndex = useActiveScrollIndexHorizontal(containerRef, {
     itemsCount,
     threshold: 35, // 35% скролла внутри элемента для активации
-    startFromZero: false, // возвращаем 1,2,3... (если true то 0,1,2...)
+    startFromZero: false, // возвращаем 1,2,3...
+    onIndexChange: (index) => {
+      console.log(`Активный элемент изменился на ${index}`);
+    },
   });
 
   return (
-    <div>
-      {/* Плашка снизу (аркана плашка) */}
+    <div style={{ position: 'relative' }}>
+      {/* Аркана плашка снизу (для горизонтального скролла можно разместить снизу или справа) */}
       <div
         style={{
           position: 'fixed',
@@ -101,43 +152,55 @@ const ScrollContainer: React.FC = () => {
           borderRadius: '8px',
           zIndex: 1000,
           boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+          whiteSpace: 'nowrap',
         }}
       >
-        Активный элемент: {activeIndex} / {itemsCount}
+        ➡️ Активный элемент: {activeIndex} / {itemsCount} ⬅️
       </div>
 
-      {/* Контейнер со скроллом */}
+      {/* Контейнер с горизонтальным скроллом */}
       <div
         ref={containerRef}
         style={{
-          height: '100vh',
-          overflowY: 'auto',
+          width: '100%',
+          overflowX: 'auto',
+          overflowY: 'hidden',
           scrollBehavior: 'smooth',
+          whiteSpace: 'nowrap',
+          cursor: 'grab',
         }}
       >
-        {Array.from({ length: itemsCount }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              height: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '32px',
-              fontWeight: 'bold',
-              backgroundColor: activeIndex === i + 1 ? '#4ecdc4' : '#f0f0f0',
-              borderBottom: '1px solid #ddd',
-              transition: 'background-color 0.3s',
-            }}
-          >
-            Элемент {i + 1}
-            {activeIndex === i + 1 && ' ◀ Активен'}
-          </div>
-        ))}
+        <div style={{ display: 'inline-flex', gap: '20px', padding: '20px' }}>
+          {Array.from({ length: itemsCount }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                width: '300px',
+                height: '400px',
+                display: 'inline-flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '32px',
+                fontWeight: 'bold',
+                backgroundColor: activeIndex === i + 1 ? '#4ecdc4' : '#f0f0f0',
+                borderRadius: '12px',
+                border: activeIndex === i + 1 ? '3px solid #2c3e50' : '1px solid #ddd',
+                transition: 'all 0.3s',
+                boxShadow: activeIndex === i + 1 ? '0 4px 15px rgba(0,0,0,0.2)' : 'none',
+              }}
+            >
+              <div>Элемент {i + 1}</div>
+              {activeIndex === i + 1 && (
+                <div style={{ fontSize: '14px', marginTop: '10px' }}>✅ Активен</div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 };
 
-export default ScrollContainer;
+export default HorizontalScrollDemo;
 
