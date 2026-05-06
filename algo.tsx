@@ -6,37 +6,42 @@ const setActiveIndexByScroll = useCallback((index: number) => {
   const rawIndex = startFromZero ? index : index - 1;
   const clampedIndex = Math.max(0, Math.min(rawIndex, itemsCount - 1));
 
-  // Процент прокрутки для этого элемента
-  const stepPercent = 100 / itemsCount;
-  const targetPercent = clampedIndex * stepPercent;
+  // Получаем все дочерние элементы контейнера (предполагается, что каждый элемент — это отдельный ребенок)
+  const children = Array.from(container.children) as HTMLElement[];
+  if (children.length === 0) return;
 
-  // Корректировка с учетом порога (чтобы элемент стал активным сразу после докрутки)
-  const thresholdOffset = (threshold / itemsCount) * stepPercent;
-  let adjustedPercent = targetPercent;
+  // Получаем позицию целевого элемента относительно контейнера
+  const targetChild = children[clampedIndex];
+  if (!targetChild) return;
 
+  // Получаем позицию элемента с учетом его отступов/рамок
+  const containerRect = container.getBoundingClientRect();
+  const childRect = targetChild.getBoundingClientRect();
+  
+  // Сколько нужно прокрутить, чтобы элемент оказался у левого края контейнера
+  let targetScrollLeft = container.scrollLeft + (childRect.left - containerRect.left);
+
+  // Учет порога: если нужно, чтобы элемент активировался не строго у края,
+  // а когда он занимает определенный процент видимой области
   if (threshold > 0) {
-    // Если не последний элемент — докручиваем до начала диапазона элемента
-    if (clampedIndex < itemsCount - 1) {
-      adjustedPercent = targetPercent;
-    } else {
-      // Последний элемент — докручиваем до конца
-      adjustedPercent = Math.min(100, targetPercent + thresholdOffset);
-    }
+    const childWidth = childRect.width;
+    const containerWidth = containerRect.width;
+    const thresholdPx = (threshold / 100) * containerWidth;
+    
+    // Корректируем позицию, чтобы элемент "въехал" на threshold процентов
+    targetScrollLeft = container.scrollLeft + (childRect.left - containerRect.left) - thresholdPx;
   }
 
-  // Преобразуем процент обратно в scrollLeft
-  const { scrollWidth, clientWidth } = container;
-  const maxScrollLeft = scrollWidth - clientWidth;
-  const targetScrollLeft = (adjustedPercent / 100) * maxScrollLeft;
+  // Ограничиваем прокрутку допустимыми пределами
+  const maxScrollLeft = container.scrollWidth - container.clientWidth;
+  targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
 
-  // Плавная прокрутка
+  // Выполняем прокрутку
   container.scrollTo({
     left: targetScrollLeft,
     behavior: 'smooth',
   });
 
-  // Обновляем состояние (вызовется onIndexChange)
+  // Обновляем состояние (колбэк сработает через handleScroll)
   setActiveIndex(clampedIndex);
 }, [containerRef, itemsCount, threshold, startFromZero]);
-
-return { activeIndex, setActiveIndexByScroll };
