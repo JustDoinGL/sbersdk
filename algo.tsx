@@ -1,46 +1,63 @@
-const scrollToIndex = useCallback((index: number) => {
-  const container = containerRef.current;
-  if (!container || itemsCount === 0) return;
+import { useStateContext } from "@products/bridge";
+import { Step, Steps } from "@sg/uikit";
+import { FC, useEffect, useRef } from "react";
 
-  // Нормализуем индекс в зависимости от startFromZero
-  const normalizedIndex = startFromZero ? index : index - 1;
-  
-  // Проверяем границы
-  if (normalizedIndex < 0 || normalizedIndex >= itemsCount) return;
+import styles from "./stepper.module.css";
 
-  const { scrollWidth, clientWidth } = container;
-  
-  // Если скролла нет, ничего не делаем
-  if (scrollWidth <= clientWidth) return;
+export const Stepper: FC = () => {
+  const { currentStep } = useStateContext();
+  const { steps } = useStateContext();
+  const completedSteps = new Set(Array.from({ length: currentStep }, (_, i) => i));
+  const stepperRef = useRef<HTMLDivElement>(null);
+  const activeStepRef = useRef<HTMLDivElement>(null);
 
-  // Вычисляем ширину одного элемента
-  const itemWidth = scrollWidth / itemsCount;
-  
-  let targetScrollLeft: number;
+  useEffect(() => {
+    const container = stepperRef.current;
+    const activeElement = activeStepRef.current;
+    
+    if (container && activeElement) {
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = activeElement.getBoundingClientRect();
+      
+      const isVisible = 
+        elementRect.left >= containerRect.left &&
+        elementRect.right <= containerRect.right;
 
-  // Первый элемент — скроллим к началу
-  if (normalizedIndex === 0) {
-    targetScrollLeft = 0;
-  } 
-  // Последний элемент — скроллим к концу
-  else if (normalizedIndex === itemsCount - 1) {
-    targetScrollLeft = scrollWidth - clientWidth;
-  } 
-  // Остальные элементы — центрируем или показываем с учетом отступов
-  else {
-    // Центр элемента
-    const elementCenter = normalizedIndex * itemWidth + itemWidth / 2;
-    // Центр контейнера
-    targetScrollLeft = elementCenter - clientWidth / 2;
-  }
+      if (!isVisible) {
+        // Рассчитываем позицию для скролла
+        const scrollLeft = 
+          container.scrollLeft + 
+          elementRect.left - 
+          containerRect.left - 
+          (containerRect.width / 2) + 
+          (elementRect.width / 2);
+        
+        container.scrollTo({
+          left: scrollLeft,
+          behavior: "smooth"
+        });
+      }
+    }
+  }, [currentStep]);
 
-  // Убеждаемся, что не выходим за границы
-  const maxScrollLeft = scrollWidth - clientWidth;
-  targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-
-  // Плавная прокрутка
-  container.scrollTo({
-    left: targetScrollLeft,
-    behavior: 'smooth'
-  });
-}, [containerRef, itemsCount, startFromZero]);
+  return (
+    <div className={styles.wrap} ref={stepperRef}>
+      <Steps
+        type="horizontal"
+        size={40}
+        divider
+        activeStep={currentStep}
+        completedSteps={completedSteps}
+      >
+        {steps.map((step, idx) => (
+          <div 
+            key={step.title} 
+            ref={idx === currentStep ? activeStepRef : null}
+          >
+            <Step idx={idx} title={step.title} />
+          </div>
+        ))}
+      </Steps>
+    </div>
+  );
+};
