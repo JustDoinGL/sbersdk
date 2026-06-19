@@ -1,92 +1,103 @@
+
+import { RefObject, useEffect, useState, useRef, useCallback } from 'react';
+
+type TSliderPosition = {
+    leftOffset: number;
+    width: number;
+};
+
 const useSlider = (checked: number, tabList: RefObject<HTMLDivElement>) => {
-    const onRepositionSlider = () => {
-        if (checkedRef.current === null) {
+    const [slider, setSlider] = useState<TSliderPosition>({ leftOffset: 0, width: 0 });
+    const [isRendered, setIsRendered] = useState(false);
+
+    const checkedRef = useRef<number | null>(null);
+    const isRenderedRef = useRef<boolean>(false);
+    const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
+
+    // Функция для позиционирования слайдера
+    const repositionSlider = useCallback(() => {
+        if (checkedRef.current === null || !tabList.current) {
             return;
         }
 
-        const node = tabList?.current?.querySelector(`button[data-value="${checkedRef.current}"]`);
         const container = tabList.current;
+        const node = container.querySelector<HTMLButtonElement>(
+            `button[data-value="${checkedRef.current}"]`
+        );
 
-        if (node && container) {
-            const containerRect = container.getBoundingClientRect();
-            const nodeRect = node.getBoundingClientRect();
-            
-            // Вычисляем позицию скролла относительно контейнера
-            const nodeOffsetLeft = node.offsetLeft;
-            const nodeWidth = node.clientWidth;
-            const containerWidth = container.clientWidth;
-            const containerScrollLeft = container.scrollLeft;
-            
-            // Определяем целевое положение скролла
-            let targetScroll = containerScrollLeft;
-            
-            // Проверяем, виден ли элемент полностью
-            const isFullyVisible = 
-                nodeRect.left >= containerRect.left && 
-                nodeRect.right <= containerRect.right;
-            
-            // Если элемент не виден полностью или частично виден
-            if (!isFullyVisible) {
-                // Если элемент слева от видимой области
-                if (nodeRect.left < containerRect.left) {
-                    targetScroll = nodeOffsetLeft - 16; // небольшой отступ слева
-                } 
-                // Если элемент справа от видимой области
-                else if (nodeRect.right > containerRect.right) {
-                    targetScroll = nodeOffsetLeft - containerWidth + nodeWidth + 16; // отступ справа
-                }
-                // Если элемент частично виден
-                else {
-                    // Центрируем элемент
-                    targetScroll = nodeOffsetLeft - (containerWidth / 2) + (nodeWidth / 2);
-                }
-            } else {
-                // Если элемент полностью виден, но нужно его показать полностью
-                // Для первого элемента - скроллим к началу
-                if (checkedRef.current === 0) {
-                    targetScroll = 0;
-                } 
-                // Для последнего - скроллим к концу
-                else {
-                    const allButtons = container.querySelectorAll('button[data-value]');
-                    const lastValue = Number(allButtons[allButtons.length - 1]?.getAttribute('data-value'));
-                    
-                    if (checkedRef.current === lastValue) {
-                        targetScroll = container.scrollWidth - containerWidth;
-                    } else {
-                        // Для остальных центрируем
-                        targetScroll = nodeOffsetLeft - (containerWidth / 2) + (nodeWidth / 2);
-                    }
-                }
-            }
-            
-            // Применяем скролл с ограничениями
-            const maxScroll = container.scrollWidth - containerWidth;
-            targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-            
+        if (!node) return;
+
+        const nodeRect = node.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const nodeWidth = node.clientWidth;
+
+        // Устанавливаем позицию слайдера
+        setSlider({
+            leftOffset: node.offsetLeft || 0,
+            width: nodeWidth || 0
+        });
+
+        // Логика скролла
+        const containerScrollLeft = container.scrollLeft;
+        const nodeOffsetLeft = node.offsetLeft;
+        const nodeOffsetRight = nodeOffsetLeft + nodeWidth;
+
+        // Для первого элемента — скроллим к началу
+        const isFirst = node === container.querySelector('button:first-child');
+        // Для последнего элемента — скроллим к концу
+        const isLast = node === container.querySelector('button:last-child');
+
+        if (isFirst) {
             container.scrollTo({
                 behavior: 'smooth',
-                left: targetScroll
+                left: 0
             });
+            return;
         }
 
-        // Обновляем слайдер
-        if (node) {
-            const w = node.clientWidth;
-            setSlider({
-                leftOffset: (node as HTMLElement).offsetLeft || 0,
-                width: w || 0
+        if (isLast) {
+            container.scrollTo({
+                behavior: 'smooth',
+                left: container.scrollWidth - container.clientWidth
+            });
+            return;
+        }
+
+        // Проверяем видимость элемента
+        const isFullyVisible = 
+            nodeOffsetLeft >= containerScrollLeft && 
+            nodeOffsetRight <= containerScrollLeft + container.clientWidth;
+
+        if (!isFullyVisible) {
+            // Скроллим так, чтобы активный элемент был виден полностью
+            // и показывал часть следующего элемента (примерно 20% от ширины)
+            const nextElement = node.nextElementSibling as HTMLElement;
+            const nextWidth = nextElement ? nextElement.clientWidth : 0;
+            const targetScroll = nodeOffsetLeft - (container.clientWidth - nodeWidth - nextWidth * 0.2);
+
+            container.scrollTo({
+                behavior: 'smooth',
+                left: Math.max(0, targetScroll)
             });
         }
-    };
+    }, []);
 
-    useEffect(() => {
+    // Функция для обновления слайдера с debounce
+    const updateSlider = useCallback(() => {
         setIsRendered(true);
+        
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => {
+            repositionSlider();
+        }, 100);
+    }, [repositionSlider]);
 
+    // Обработчик изменения размера
+    useEffect(() => {
         const onResize = () => {
             clearTimeout(debounceTimer.current);
             debounceTimer.current = setTimeout(() => {
-                onRepositionSlider();
+                repositionSlider();
             }, 500);
         };
 
@@ -98,18 +109,26 @@ const useSlider = (checked: number, tabList: RefObject<HTMLDivElement>) => {
             window.removeEventListener('orientationchange', onResize);
             clearTimeout(debounceTimer.current);
         };
-    }, []);
+    }, [repositionSlider]);
 
+    // Обработчик изменения checked
     useEffect(() => {
         checkedRef.current = checked;
-        // Используем requestAnimationFrame для гарантии, что DOM обновился
-        requestAnimationFrame(() => {
-            onRepositionSlider();
-        });
         isRenderedRef.current = true;
-    }, [checked]);
+        
+        // Немного задерживаем для корректного рендера
+        const timer = setTimeout(() => {
+            repositionSlider();
+        }, 50);
+
+        return () => clearTimeout(timer);
+    }, [checked, repositionSlider]);
 
     return {
-        // ... return values
+        isRendered,
+        sliderLeftOffset: slider.leftOffset,
+        sliderWidth: slider.width
     };
 };
+
+export default useSlider;
