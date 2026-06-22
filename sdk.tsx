@@ -1,14 +1,16 @@
 <AnimatePresence mode="wait">
   {data.assistant.items
-    .filter((_, slideIndex) => slideIndex <= activeIndex) // ← Фильтруем, а не return null
+    .filter((_, index) => index <= activeIndex)
     .map((slide, slideIndex) => {
       const isActive = slideIndex === activeIndex;
-      const isPast = slideIndex < activeIndex;
-
+      
       return (
         <motion.div
-          key={`label-${slideIndex}`} // ← Важно: уникальный ключ
-          className={cx('${CLASS_NAME}_label', '${CLASS_NAME}_label_slide_${slideIndex}')}
+          key={`label-${slideIndex}-${isActive ? 'active' : 'past'}`} // ← Уникальный key
+          className={cx(
+            `${CLASS_NAME}_label`,
+            `${CLASS_NAME}_label_slide_${slideIndex}`
+          )}
           initial={{
             y: '100vh',
             opacity: 0
@@ -26,7 +28,7 @@
             y: { 
               type: 'spring', 
               stiffness: 100, 
-              damping: 20, 
+              damping: 20,
               mass: 0.8
             },
             opacity: { duration: 0.4 }
