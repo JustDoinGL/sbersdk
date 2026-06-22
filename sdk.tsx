@@ -1,40 +1,29 @@
-<AnimatePresence mode="wait">
-  {data.assistant.items
-    .filter((_, index) => index <= activeIndex)
-    .map((slide, slideIndex) => {
-      const isActive = slideIndex === activeIndex;
+// hooks/useScrollDirection.ts
+import { useEffect, useState } from 'react';
+
+export const useScrollDirection = () => {
+  const [scrollDirection, setScrollDirection] = useState<'up' | 'down'>('down');
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
       
-      return (
-        <motion.div
-          key={`label-${slideIndex}-${isActive ? 'active' : 'past'}`} // ← Уникальный key
-          className={cx(
-            `${CLASS_NAME}_label`,
-            `${CLASS_NAME}_label_slide_${slideIndex}`
-          )}
-          initial={{
-            y: '100vh',
-            opacity: 0
-          }}
-          animate={{
-            y: isActive ? '50%' : '-100vh',
-            opacity: isActive ? 1 : 0
-          }}
-          exit={{
-            y: '-100vh',
-            opacity: 0,
-            transition: { duration: 0.6, ease: 'easeInOut' }
-          }}
-          transition={{
-            y: { 
-              type: 'spring', 
-              stiffness: 100, 
-              damping: 20,
-              mass: 0.8
-            },
-            opacity: { duration: 0.4 }
-          }}
-          dangerouslySetInnerHTML={{ __html: slide.label }}
-        />
-      );
-    })}
-</AnimatePresence>
+      if (currentScrollY > lastScrollY) {
+        setScrollDirection('down');
+      } else if (currentScrollY < lastScrollY) {
+        setScrollDirection('up');
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [lastScrollY]);
+
+  return scrollDirection;
+};
