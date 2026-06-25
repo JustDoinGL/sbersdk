@@ -1,73 +1,51 @@
-import { useScrollDirection } from './hooks/useScrollDirection';
+import { useEffect, useRef, useState } from 'react';
 
-const YourComponent = () => {
-  const scrollDirection = useScrollDirection();
-  const [activeIndex, setActiveIndex] = useState(0);
-  
-  // Логика изменения activeIndex при скролле
+const useAutoPlayVideo = (videoRef: React.RefObject<HTMLVideoElement>) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const playedRef = useRef(false);
+
   useEffect(() => {
-    const handleScroll = () => {
-      // Ваша логика определения активного индекса
-      // Например, по позиции скролла
+    const video = videoRef.current;
+    if (!video || playedRef.current) return;
+
+    const tryPlay = async () => {
+      if (playedRef.current) return;
+
+      try {
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
+        
+        await video.play();
+        playedRef.current = true;
+        setIsPlaying(true);
+        
+        // Очищаем обработчик после успешного запуска
+        document.removeEventListener('click', onUserInteraction, true);
+      } catch {
+        // Ничего не делаем, ждём клика
+      }
     };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
-  return (
-    <AnimatePresence mode="wait">
-      {data.assistant.items
-        .filter((_, index) => index <= activeIndex)
-        .map((slide, slideIndex) => {
-          const isActive = slideIndex === activeIndex;
-          const isPast = slideIndex < activeIndex;
-          
-          // Определяем направление движения в зависимости от скролла
-          const getYPosition = () => {
-            if (isActive) return '50%';
-            
-            if (isPast) {
-              // Прошлые элементы уезжают в зависимости от направления
-              return scrollDirection === 'down' ? '-100vh' : '100vh';
-            }
-            
-            return '100vh';
-          };
+    const onUserInteraction = (e: Event) => {
+      if (e.isTrusted && !playedRef.current) {
+        tryPlay();
+      }
+    };
 
-          return (
-            <motion.div
-              key={`label-${slideIndex}`}
-              className={cx(
-                `${CLASS_NAME}_label`,
-                `${CLASS_NAME}_label_slide_${slideIndex}`
-              )}
-              initial={{
-                y: scrollDirection === 'down' ? '100vh' : '-100vh', // Выезжает снизу или сверху
-                opacity: 0
-              }}
-              animate={{
-                y: getYPosition(),
-                opacity: isActive ? 1 : 0
-              }}
-              exit={{
-                y: scrollDirection === 'down' ? '-100vh' : '100vh', // Уезжает вверх или вниз
-                opacity: 0,
-                transition: { duration: 0.6, ease: 'easeInOut' }
-              }}
-              transition={{
-                y: { 
-                  type: 'spring', 
-                  stiffness: 100, 
-                  damping: 20,
-                  mass: 0.8
-                },
-                opacity: { duration: 0.4 }
-              }}
-              dangerouslySetInnerHTML={{ __html: slide.label }}
-            />
-          );
-        })}
-    </AnimatePresence>
-  );
+    // Первая попытка
+    tryPlay();
+
+    // Единственный надёжный обработчик для iOS
+    document.addEventListener('click', onUserInteraction, true);
+
+    return () => {
+      document.removeEventListener('click', onUserInteraction, true);
+    };
+  }, [videoRef]);
+
+  return isPlaying;
 };
+
+export default useAutoPlayVideo;
