@@ -1,104 +1,90 @@
-import { FC, JSX, ReactNode } from "react";
-import { ProductContext } from "./useProductsContext";
-import { NameProducts } from "./../2_widgets/test-form";
+import React, { useEffect, useRef } from 'react';
 
-// Тип для маппера продуктов
-type ProductMapper = Record<number, () => {
-  Form: () => JSX.Element;
-  ButtonController: () => JSX.Element;
-}>;
+interface PreventPullToRefreshProps {
+  children: React.ReactNode;
+  scrollId: string;
+}
 
-// Создаем маппер функций, а не результатов
-const productsMapper: ProductMapper = {
-  32: NameProducts,
-  // Добавьте другие продукты:
-  // 33: AnotherProductFunction,
-  // 34: YetAnotherProductFunction,
+const PreventPullToRefresh = ({
+  children,
+  scrollId,
+}: PreventPullToRefreshProps) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+
+    if (!wrapper) {
+      return;
+    }
+
+    const container = wrapper.querySelector<HTMLElement>(`#${scrollId}`);
+
+    if (!container) {
+      console.warn(`Элемент с ID "${scrollId}" не найден`);
+      return;
+    }
+
+    let lastTouchY = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        return;
+      }
+
+      lastTouchY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        return;
+      }
+
+      const currentTouchY = e.touches[0].clientY;
+      const deltaY = currentTouchY - lastTouchY;
+
+      // Обязательно обновляем координату
+      lastTouchY = currentTouchY;
+
+      const { scrollTop, scrollHeight, clientHeight } = container;
+
+      const isAtTop = scrollTop <= 0;
+      const isAtBottom =
+        scrollTop + clientHeight >= scrollHeight - 1;
+
+      // Палец движется вниз + мы уже наверху.
+      // Блокируем pull-to-refresh.
+      if (deltaY > 0 && isAtTop) {
+        e.preventDefault();
+        return;
+      }
+
+      // Палец движется вверх + мы уже внизу.
+      // Блокируем дальнейший overscroll.
+      if (deltaY < 0 && isAtBottom) {
+        e.preventDefault();
+      }
+    };
+
+    wrapper.addEventListener('touchstart', handleTouchStart, {
+      passive: true,
+    });
+
+    wrapper.addEventListener('touchmove', handleTouchMove, {
+      passive: false,
+    });
+
+    return () => {
+      wrapper.removeEventListener('touchstart', handleTouchStart);
+      wrapper.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [scrollId]);
+
+  return (
+    <div ref={wrapperRef}>
+      {children}
+    </div>
+  );
 };
 
-type Props = {
-  children: ReactNode;
-  productCode: number;
-};
-
-export const ProductsProvider: FC<Props> = ({ children, productCode }) => {
-  // Получаем функцию для нужного продукта
-  const productFunction = productsMapper[productCode];
-
-  if (!productFunction) {
-    return <div>Product not found: {productCode}</div>;
-  }
-
-  // Вызываем функцию чтобы получить данные
-  const product = productFunction();
-
-  return <ProductContext.Provider value={product}>{children}</ProductContext.Provider>;
-};
-
-
-
-
-
-import { createContext, JSX, useContext } from "react";
-
-export type ProductValue = {
-  Form: () => JSX.Element;
-  ButtonController: () => JSX.Element;
-};
-
-export const ProductContext = createContext<ProductValue | null>(null);
-
-export const useProductsContext = () => {
-  const ctx = useContext(ProductContext);
-
-  if (!ctx) {
-    throw new Error("useProductsContext must be used inside Provider");
-  }
-
-  return ctx;
-};
-
-
-
-
-
-
-import { FC, ReactNode } from "react";
-import { useProductsContext } from "./useProductsContext";
-import { ProductsProvider } from "./product_context";
-
-// Суб-компоненты
-const ProductsFormController: FC = () => {
-  const { Form } = useProductsContext();
-  return <Form />;
-};
-
-const ProductsButtonController: FC = () => {
-  const { ButtonController } = useProductsContext();
-  return <ButtonController />;
-};
-
-// Основные пропсы
-type ProductsProps = {
-  product: number;
-  children?: ReactNode;
-};
-
-// Тип для компонента с суб-компонентами
-type ProductsComponent = FC<ProductsProps> & {
-  Form: FC;
-  Button: FC;
-};
-
-// Основной компонент
-const Products: ProductsComponent = ({ children, product }) => (
-  <ProductsProvider productCode={product}>{children}</ProductsProvider>
-);
-
-// Прикрепляем суб-компоненты
-Products.Form = ProductsFormController;
-Products.Button = ProductsButtonController;
-
-export { Products };
-
-
+export default PreventPullToRefresh;
