@@ -1,38 +1,51 @@
-const AccidentContent = () => {
-  // ...
+const mockCreateDraft = async (): Promise<void> => {};
 
-  const createDraft = async () => {
-    await form.handleSubmit(
-      async (data: OutputOsagoSchema) => {
-        const result = await createDraftAction(data);
+const mockHandleLoadDocuments = async (
+  type: DocumentLoadedTypes,
+): Promise<
+  {
+    fileId: string;
+    name: string;
+    unifiedId?: string;
+    documentType?: string;
+  }[]
+> => [];
 
-        await applyCalculationResult({
-          ...result,
-          successTitle: 'Черновик успешно создан',
-        });
-      },
-      (errors) => {
-        console.error({ errors });
+const mockHandleCreatePaymentCalculation = async (
+  data: ProductCalculationRequest,
+): Promise<{
+  paymentUrl: string;
+  paymentShortUrl: string;
+}> => ({
+  paymentUrl: '',
+  paymentShortUrl: '',
+});
 
-        const msg =
-          'На одном из экранов есть неправильно заполненные поля';
+const mockHandleDownloadDocument = async (
+  fileId: string,
+  name: string,
+): Promise<void> => {};
 
-        form.setError('root', {
-          message: msg,
-        });
-      },
-    )();
-  };
+const mockHandleSendDocumentsFile = async (
+  args: SendDocumentArgs,
+): Promise<void> => {};
 
-  const Component = accidentSteps[currentStep].screen;
+const mockMapToEpkClients = (): CreateEpkClientDto[] => [];
 
-  return (
-    <ProductContextProvider
-      handleCreateDraft={createDraft}
-      handleAppointmentCalculation={() => {}}
-      handleDownloadDocument={() => {}}
-    >
-      <Component />
-    </ProductContextProvider>
-  );
-};
+const mockHandlePaymentCompleted = (
+  calculationDto: CalculationDto,
+): void => {};
+
+return (
+  <ProductContextProvider
+    handleCreateDraft={mockCreateDraft}
+    handleLoadDocuments={mockHandleLoadDocuments}
+    handleCreatePaymentCalculation={mockHandleCreatePaymentCalculation}
+    handleDownloadDocument={mockHandleDownloadDocument}
+    handleSendDocumentsFile={mockHandleSendDocumentsFile}
+    mapToEpkClients={mockMapToEpkClients}
+    handlePaymentCompleted={mockHandlePaymentCompleted}
+  >
+    {children}
+  </ProductContextProvider>
+);
