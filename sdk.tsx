@@ -1,51 +1,79 @@
-import { useEffect, useRef, useState } from 'react';
+type PaymentFrequency =
+  | 'Single'
+  | 'TwoEqualPayments'
+  | 'Quarterly'
+  | 'Other';
 
-const useAutoPlayVideo = (videoRef: React.RefObject<HTMLVideoElement>) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const playedRef = useRef(false);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || playedRef.current) return;
-
-    const tryPlay = async () => {
-      if (playedRef.current) return;
-
-      try {
-        video.muted = true;
-        video.playsInline = true;
-        video.setAttribute('playsinline', '');
-        video.setAttribute('webkit-playsinline', '');
-        
-        await video.play();
-        playedRef.current = true;
-        setIsPlaying(true);
-        
-        // Очищаем обработчик после успешного запуска
-        document.removeEventListener('click', onUserInteraction, true);
-      } catch {
-        // Ничего не делаем, ждём клика
-      }
-    };
-
-    const onUserInteraction = (e: Event) => {
-      if (e.isTrusted && !playedRef.current) {
-        tryPlay();
-      }
-    };
-
-    // Первая попытка
-    tryPlay();
-
-    // Единственный надёжный обработчик для iOS
-    document.addEventListener('click', onUserInteraction, true);
-
-    return () => {
-      document.removeEventListener('click', onUserInteraction, true);
-    };
-  }, [videoRef]);
-
-  return isPlaying;
+type BaseRateAttributes = {
+  coveragePeriod?: string;
+  payoutOption?: string;
 };
 
-export default useAutoPlayVideo;
+type CoefficientAttributes = {
+  insuredQuantity: number;
+  professionKind: string;
+  ruleNumber?: number;
+  professionId?: string;
+  sumInsuredOrder: string;
+  duration: number;
+  payPercent?: number;
+  payDays?: number;
+  payOutTable?: string;
+  antimite?: boolean;
+  toxicoInfectionFood?: boolean;
+  improperMedicalManipulations?: boolean;
+  sport?: boolean;
+  sportTypesIds?: string[];
+  lossFreeYears?: number;
+  active?: boolean;
+  specialProgram?: string;
+  promo?: string;
+};
+
+type InsuranceRiskAttributes = {
+  baseRateAttributes: BaseRateAttributes;
+  coefficientAttributes: CoefficientAttributes;
+};
+
+type InsuredObject = {
+  id: string;
+  code: string;
+  type: string;
+  description: string;
+  sumInsured: number;
+  groupNames: string[];
+};
+
+type InsuranceRisk = {
+  id: string;
+  objectRef: string;
+  sumInsured?: number;
+  boxedProgramDuration?: number;
+  insuranceVariant: string;
+  massEventVariantNumber?: number;
+  elementaryRisk?: string;
+  programId: string;
+  elementaryRiskId: string;
+  attributes?: InsuranceRiskAttributes;
+};
+
+type PaymentPlanItem = {
+  paymentDate: string;
+  paymentAmount: number;
+  paymentNumber: number;
+};
+
+type PaymentData = {
+  paymentFrequency: PaymentFrequency;
+  paymentPlan?: PaymentPlanItem[];
+};
+
+type CalculationRequest = {
+  objects: InsuredObject[];
+  items: InsuranceRisk[];
+  paymentData?: PaymentData;
+  startDate: string;
+  endDate: string;
+  sumInsuredMethod: string;
+  sumInsuredOrder: string;
+};
