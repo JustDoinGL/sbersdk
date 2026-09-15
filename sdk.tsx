@@ -26,6 +26,20 @@ type Props<
   code: K;
 } & Omit<MultiSelectProps<string>, "ref" | "options">;
 
+const useDebounce = <T,>(value: T, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(timeoutId);
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 export const DictionaryMultiselect = <
   FormData extends FieldValues,
   T extends PRODUCT,
@@ -38,26 +52,22 @@ export const DictionaryMultiselect = <
   const { push } = useToast();
 
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 500);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [query]);
+  const debouncedQuery = useDebounce(query, 500);
 
   const { data: options = [], isFetching } = useQuery({
     queryKey: ["dictionary", product, code, debouncedQuery],
 
-    queryFn: async () => {
-      const response = await dictionariesApi.searchDictionary(product, {
-        code,
-        query: debouncedQuery,
-      });
+    queryFn: async ({ signal }) => {
+      const response = await dictionariesApi.searchDictionary(
+        product,
+        {
+          code,
+          query: debouncedQuery,
+        },
+        {
+          signal,
+        },
+      );
 
       if (response.count === 0) {
         push({
@@ -78,7 +88,6 @@ export const DictionaryMultiselect = <
     <ControlledMultiselect
       {...rest}
       onInputChange={setQuery}
-      onFocus={() => setQuery("")}
       options={options as Option<string>[]}
       loading={isFetching}
     />
