@@ -1,119 +1,86 @@
-import React, { useState } from 'react';
-import { Control, FieldValues, Path } from 'react-hook-form';
+import {
+  dictionariesApi,
+  PRODUCT,
+  ProductCodeMap,
+} from "@products/domain/shared/5_api";
+import {
+  MultiSelectProps,
+  type Option,
+  useToast,
+} from "@sg/uikit";
+import { useEffect, useState } from "react";
+import { Control, FieldValues, Path } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
+
 import { ControlledMultiselect } from "@/5_shared/ui";
-import { dictionariesApi } from "@products/domain/shared/5_api";
-import { Option } from "@sg/uikit";
-
-// ==========================================
-// 1. ТИПЫ ДЛЯ ПРОДУКТА И КОДА
-// ==========================================
-
-// Карта: продукт -> доступные коды
-export type ProductCodeMap = {
-  accidents: 'professions' | 'sports';
-  auto: 'brands' | 'models';
-};
-
-// Тип продукта (вытаскивается автоматически из ключей карты)
-export type PRODUCT = keyof ProductCodeMap;
-
-// ==========================================
-// 2. ТИП ПРОПСОВ (Abort Controller тут)
-// ==========================================
 
 type Props<
   FormData extends FieldValues,
   T extends PRODUCT,
-  K extends ProductCodeMap[T]
+  K extends ProductCodeMap[T],
 > = {
   control: Control<FormData>;
   name: Path<FormData>;
+  wrapperClassName?: string;
   product: T;
   code: K;
-  wrapperClassName?: string;
-} & Omit<React.ComponentProps<typeof ControlledMultiselect>, 'options' | 'onInputChange' | 'control' | 'name'>;
+} & Omit<MultiSelectProps<string>, "ref" | "options">;
 
-// ==========================================
-// 3. САМ КОМПОНЕНТ
-// ==========================================
-
-export const DictionaryMultiSelect = <
+export const DictionaryMultiselect = <
   FormData extends FieldValues,
   T extends PRODUCT,
-  K extends ProductCodeMap[T]
+  K extends ProductCodeMap[T],
 >({
-  control,
-  name,
   product,
   code,
   ...rest
 }: Props<FormData, T, K>) => {
-  const [options, setOptions] = useState<Option<string>[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { push } = useToast();
 
-  // Дебаунс-таймер прямо в замыкании handleChange
-  const handleChange = (() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-    
-    // AbortController для отмены предыдущего запроса
-    let abortController: AbortController | null = null;
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-    return async (query: string) => {
-      // 1. Сбрасываем предыдущий таймер
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 500);
+
+    return () => {
       clearTimeout(timeoutId);
-      
-      // 2. Отменяем предыдущий запрос (если он был)
-      if (abortController) {
-        abortController.abort();
+    };
+  }, [query]);
+
+  const { data: options = [], isFetching } = useQuery({
+    queryKey: ["dictionary", product, code, debouncedQuery],
+
+    queryFn: async () => {
+      const response = await dictionariesApi.searchDictionary(product, {
+        code,
+        query: debouncedQuery,
+      });
+
+      if (response.count === 0) {
+        push({
+          type: "info",
+          title: "Элемент не найден",
+        });
+
+        return [];
       }
 
-      // 3. Ставим новый таймер на 500мс
-      timeoutId = setTimeout(async () => {
-        if (!query.trim()) {
-          setOptions([]);
-          return;
-        }
+      return response.data;
+    },
 
-        setIsLoading(true);
-        abortController = new AbortController();
-
-        try {
-          // Тут ваш реальный вызов API
-          const response = await dictionariesApi.searchDictionary(product, {
-            code,
-            query,
-          });
-
-          // Проверяем, не отменен ли запрос, пока он летел
-          if (!abortController.signal.aborted) {
-            const mapped = (response.data || []).map((item: any) => ({
-              label: item.label,
-              value: String(item.value),
-            }));
-            setOptions(mapped);
-          }
-        } catch (err: any) {
-          // Игнорируем ошибку отмены
-          if (err.name !== 'AbortError') {
-            console.error('Ошибка поиска:', err);
-          }
-        } finally {
-          if (!abortController?.signal.aborted) {
-            setIsLoading(false);
-          }
-        }
-      }, 500); // 500мс задержка
-    };
-  })();
+    enabled: Boolean(product),
+  });
 
   return (
     <ControlledMultiselect
-      control={control}
-      name={name}
-      options={options}
-      isLoading={isLoading}
-      onInputChange={handleChange}
       {...rest}
+      onInputChange={setQuery}
+      onFocus={() => setQuery("")}
+      options={options as Option<string>[]}
+      loading={isFetching}
     />
   );
 };
