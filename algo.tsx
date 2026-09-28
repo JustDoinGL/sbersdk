@@ -1,154 +1,77 @@
-import { useEffect } from "react";
-import { Controller, useFormContext, useWatch } from "react-hook-form";
+export const mapDataToCalculationRequest = (
+  data: OutputAccidentSchema,
+): CalculationRequest => {
+  const {
+    insuredGroups,
+    startDate,
+    endDate,
+    insureds,
+    termDays,
+    policyholder,
+  } = data;
 
-type Props = FormData & {
-  control: any;
-  clients: Array<{
-    value: string;
-    label: string;
-  }>;
-  index: number;
-  name: string;
-  rest?: unknown;
-};
+  const personByClientId = new Map(
+    [
+      ...insureds,
+      ...(policyholder ? [policyholder] : []),
+    ].map((person) => [
+      person.clientId,
+      person,
+    ]),
+  );
 
-export const GroupUsersSelect = ({
-  control,
-  clients,
-  index,
-  name,
-  ...rest
-}: Props) => {
-  const form = useFormContext<AccidentSchema>();
+  const groupIndexByClientId = new Map<string, number>();
 
-  /**
-   * Все группы застрахованных
-   */
-  const insuredGroups =
-    useWatch({
-      control: form.control,
-      name: "insuredGroups",
-    }) ?? [];
-
-  /**
-   * Все insured
-   */
-  const insureds =
-    useWatch({
-      control: form.control,
-      name: "insureds",
-    }) ?? [];
-
-  /**
-   * Policyholder — одна сущность,
-   * поэтому приводим его к массиву и дальше
-   * работаем с ним так же, как с insured.
-   */
-  const policyholder = useWatch({
-    control: form.control,
-    name: "policyholder",
+  insuredGroups.forEach((group, groupIndex) => {
+    group.clientIds.forEach((clientId) => {
+      groupIndexByClientId.set(clientId, groupIndex);
+    });
   });
 
-  /**
-   * Текущая группа
-   */
-  const currentGroup = insuredGroups[index];
+  const objects = Array.from(personByClientId.values())
+    .map((person) => {
+      const groupIndex = groupIndexByClientId.get(
+        person.clientId,
+      );
 
-  /**
-   * Все люди в одном массиве.
-   *
-   * Дальше нам вообще не важно,
-   * policyholder это или insured.
-   */
-  const people = [
-    ...(policyholder ? [policyholder] : []),
-    ...insureds,
-  ];
+      if (groupIndex === undefined) {
+        throw new Error(
+          `Person ${person.clientId} is not assigned to a group`,
+        );
+      }
 
-  /**
-   * ID людей, которые входят в текущую группу.
-   *
-   * Set позволяет быстро проверять наличие ID:
-   * O(1) вместо поиска по массиву.
-   */
-  const groupClientIds = new Set(currentGroup?.clientIds ?? []);
+      return createObject(
+        person,
+        groupIndex,
+        insuredGroups[groupIndex],
+      );
+    });
 
-  /**
-   * Есть ли в текущей группе человек,
-   * у которого occupationType отличается от "employed".
-   */
-  const hasNonEmployedPerson = people.some(
-    (person) =>
-      groupClientIds.has(person.clientId) &&
-      person.profession?.occupationType !== "employed",
+  const items = insuredGroups.flatMap(
+    (group, groupIndex) =>
+      group.clientIds.flatMap((clientId) => {
+        const person = personByClientId.get(clientId);
+
+        if (!person) {
+          throw new Error(
+            `Person ${clientId} not found`,
+          );
+        }
+
+        return createItemsForClient(
+          clientId,
+          groupIndex,
+          group,
+          person,
+          termDays,
+        );
+      }),
   );
 
-  /**
-   * Поле формы для текущей группы.
-   */
-  const hasUnemployedKey =
-    `insuredGroups.${index}.hasUnemployed` as const;
-
-  /**
-   * Если в группе есть человек не с occupationType = "employed",
-   * устанавливаем соответствующий флаг.
-   *
-   * Также, если trauma включен,
-   * принудительно устанавливаем sumInsuredMethod = "byRisk".
-   */
-  useEffect(() => {
-    form.setValue(hasUnemployedKey, hasNonEmployedPerson);
-
-    if (!hasNonEmployedPerson) {
-      return;
-    }
-
-    const isEnabledTrauma = form.getValues(
-      `insuredGroups.${index}.risk.trauma.enabled`,
-    );
-
-    if (!isEnabledTrauma) {
-      return;
-    }
-
-    form.setValue(
-      `insuredGroups.${index}.risk.trauma.dictionaries.sumInsuredMethod`,
-      "byRisk",
-    );
-  }, [
-    form,
-    hasNonEmployedPerson,
-    hasUnemployedKey,
-    index,
-  ]);
-
-  /**
-   * Клиенты, которые уже используются
-   * в других группах.
-   */
-  const currentFields = form.watch("insuredGroups") ?? [];
-
-  const optionGroupUsers = clients.filter(
-    (client) =>
-      !currentFields.some(
-        (field, fieldIndex) =>
-          fieldIndex !== index &&
-          field.clientIds?.includes(client.value),
-      ),
-  );
-
-  return (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field, fieldState }) => (
-        <GroupUsersSelect
-          {...rest}
-          {...field}
-          clients={optionGroupUsers}
-          error={fieldState.error?.message}
-        />
-      )}
-    />
-  );
+  return {
+    objects,
+    items,
+    startDate,
+    endDate,
+  };
 };
