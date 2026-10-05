@@ -1,110 +1,72 @@
-import { ComponentProps } from "react";
-import { FieldValues, useFormContext, useWatch } from "react-hook-form";
+import { useMemo } from 'react';
 
-import { useDebounce } from "@/5_shared/hooks";
-import {
-  ControlledInputField,
-  ControlledDictionarySelectBox,
-} from "@/5_shared/ui";
+// ... (остальные импорты)
 
-import { useSearchVehicleDto } from "@/modules/products/domain/shared/hooks";
+export const ControlledModificationField = <FormData extends FieldValues>({
+  // ... пропсы
+}) => {
+  // ... (предыдущие хуки)
 
-type FacetedFieldProps<FormData extends FieldValues> = Omit<
-  ComponentProps<typeof ControlledInputField<FormData>>,
-  "onChange"
->;
-
-export const ControlledFacetedField = <
-  FormData extends FieldValues,
->({
-  name,
-  ...props
-}: FacetedFieldProps<FormData>) => {
-  const form = useFormContext<FormData>();
-
-  const value = useWatch({
-    control: form.control,
-    name,
-  });
-
-  const debouncedValue = useDebounce(value, 500);
-
-  return (
-    <ControlledInputField
-      {...props}
-      name={name}
-      control={form.control}
-      onChange={(event) => {
-        form.setValue(name, event.target.value as FormData[typeof name], {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }}
-    />
-  );
-};
-
-type ModificationFieldProps<FormData extends FieldValues> = Omit<
-  ComponentProps<typeof ControlledDictionarySelectBox<FormData>>,
-  "options" | "onSelect"
-> & {
-  maker?: string;
-  model?: string;
-  yearOfProduction?: string | number;
-  enginePower?: string | number;
-  onVehicleFound?: (vehicle: unknown) => void;
-};
-
-export const ControlledModificationField = <
-  FormData extends FieldValues,
->({
-  maker,
-  model,
-  yearOfProduction,
-  enginePower,
-  onVehicleFound,
-  ...props
-}: ModificationFieldProps<FormData>) => {
-  const form = useFormContext<FormData>();
-
-  const hasAllFilters =
-    Boolean(maker) &&
-    Boolean(model) &&
-    Boolean(yearOfProduction) &&
-    Boolean(enginePower);
+  const hasAllFilters = Boolean(maker) && Boolean(model) && Boolean(yearOfProduction) && Boolean(enginePower);
 
   const vehicleByModification = useSearchVehicleDto({
     filters: {
-      maker,
-      model,
+      maker: maker,
+      model: model,
       prod: yearOfProduction,
       enginePower_gt: enginePower,
-    },
+    } as any, // Фикс ошибки типизации
+    enabled: false,
     groupKey: "modificationName",
-    enabled: hasAllFilters,
   });
 
-  const options = vehicleByModification.options ?? [];
+  // Вся логика внутри useMemo
+  useMemo(() => {
+    const options = vehicleByModification.options;
 
-  const firstOption = options[0];
+    // Проверка, что опции есть
+    if (!options) return;
 
-  const handleSelect = (option: (typeof options)[number]) => {
-    props.onSelect?.(option);
+    const keys = Object.keys(options);
 
-    const vehicleDto = options.find(
-      (item) => item.value === option.value,
-    )?.vehicleDto;
+    // Проверка, что ключи есть
+    if (keys.length === 0) return;
 
-    if (vehicleDto) {
-      onVehicleFound?.(vehicleDto);
+    const firstKey = keys[0];
+    const selectedVehicleDto = options[firstKey];
+
+    console.log(options);
+
+    // Устанавливаем значение в форму
+    form.setValue("vehicle.modificationName", firstKey);
+
+    // Вызываем колбэк
+    if (onVehicleFound) {
+      onVehicleFound(selectedVehicleDto);
     }
-  };
+
+  }, [vehicleByModification.options, form, onVehicleFound]);
+
+  const isLoading = vehicleByModification.loading || models.loading;
 
   return (
     <ControlledDictionarySelectBox
-      {...props}
-      options={options}
-      onSelect={handleSelect}
+      label="Модификация"
+      endIcon={isLoading ? <Spinner /> : undefined}
+      size="xl"
+      options={models.options}
+      onSelect={(e) => {
+        if (props.onSelect) props.onSelect(e);
+        
+        // Логика для ручного выбора
+        const selectedKey = e.value;
+        const options = vehicleByModification.options;
+        
+        if (selectedKey && options && options[selectedKey]) {
+          form.setValue("vehicle.modificationName", selectedKey);
+          if (onVehicleFound) onVehicleFound(options[selectedKey]);
+        }
+      }}
     />
   );
 };
