@@ -1,77 +1,110 @@
-import { calcTermDays } from "./3_forms/policy_period/helper";
-import { GetAgreementsResponse } from "./5_api";
-import { InputAccidentsSchema } from "./schema";
+import { ComponentProps } from "react";
+import { FieldValues, useFormContext, useWatch } from "react-hook-form";
 
-export const mapResToForm = (
-  data: GetAgreementsResponse["data"],
-): InputAccidentsSchema => {
-  const {
-    endOfInsurance,
-    startOfInsurance,
-    parties,
-  } = data;
+import { useDebounce } from "@/5_shared/hooks";
+import {
+  ControlledInputField,
+  ControlledDictionarySelectBox,
+} from "@/5_shared/ui";
 
-  const { policyholder, insureds } = Object.values(parties)
-    .flat()
-    .reduce<{
-      policyholder: InputAccidentsSchema["policyholder"] | undefined;
-      insureds: InputAccidentsSchema["insureds"];
-    }>(
-      (acc, party) => {
-        const person = {
-          clientId: party.personCalculationId,
-          clientIdByMrm: "some",
-          divisionCode: party.personCalculationId,
-          addressType: party.address,
-          addressValue: party.address,
-          documentNumber: party.documents[0].number,
-          documents: party.documents[0],
-          documentSeries: party.documents[0].series,
-          documentType: party.documents[0].documentType,
-          email: party.email,
-          firstName: party.firstName,
-          gender: party.sex,
-          isPolicyHolderInsured: party.roles.includes("insured"),
-          issuedBy: party.documents[0].issuer,
-          lastName: party.lastName,
-          phone: party.phone,
-          birthDate: new Date(party.birthDate),
-          issueDate: new Date(party.documents[0].issueDate),
-          middleName: party.middleName,
-          occupationType: "employed",
-          profession: "Новая профессия",
-          professionId: party.personCalculationId,
-        };
+import { useSearchVehicleDto } from "@/modules/products/domain/shared/hooks";
 
-        if (party.roles.includes("policyHolder")) {
-          acc.policyholder = person;
-        }
+type FacetedFieldProps<FormData extends FieldValues> = Omit<
+  ComponentProps<typeof ControlledInputField<FormData>>,
+  "onChange"
+>;
 
-        if (party.roles.includes("insured")) {
-          acc.insureds.push(person);
-        }
+export const ControlledFacetedField = <
+  FormData extends FieldValues,
+>({
+  name,
+  ...props
+}: FacetedFieldProps<FormData>) => {
+  const form = useFormContext<FormData>();
 
-        return acc;
-      },
-      {
-        policyholder: undefined,
-        insureds: [],
-      },
-    );
+  const value = useWatch({
+    control: form.control,
+    name,
+  });
 
-  if (!policyholder) {
-    throw new Error("Policyholder не найден");
-  }
+  const debouncedValue = useDebounce(value, 500);
 
-  return {
-    startDate: new Date(startOfInsurance),
-    endDate: new Date(endOfInsurance),
-    termDays: calcTermDays(
-      new Date(startOfInsurance),
-      new Date(endOfInsurance),
-    ),
-    insuredGroups: [],
-    insureds,
-    policyholder,
+  return (
+    <ControlledInputField
+      {...props}
+      name={name}
+      control={form.control}
+      onChange={(event) => {
+        form.setValue(name, event.target.value as FormData[typeof name], {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }}
+    />
+  );
+};
+
+type ModificationFieldProps<FormData extends FieldValues> = Omit<
+  ComponentProps<typeof ControlledDictionarySelectBox<FormData>>,
+  "options" | "onSelect"
+> & {
+  maker?: string;
+  model?: string;
+  yearOfProduction?: string | number;
+  enginePower?: string | number;
+  onVehicleFound?: (vehicle: unknown) => void;
+};
+
+export const ControlledModificationField = <
+  FormData extends FieldValues,
+>({
+  maker,
+  model,
+  yearOfProduction,
+  enginePower,
+  onVehicleFound,
+  ...props
+}: ModificationFieldProps<FormData>) => {
+  const form = useFormContext<FormData>();
+
+  const hasAllFilters =
+    Boolean(maker) &&
+    Boolean(model) &&
+    Boolean(yearOfProduction) &&
+    Boolean(enginePower);
+
+  const vehicleByModification = useSearchVehicleDto({
+    filters: {
+      maker,
+      model,
+      prod: yearOfProduction,
+      enginePower_gt: enginePower,
+    },
+    groupKey: "modificationName",
+    enabled: hasAllFilters,
+  });
+
+  const options = vehicleByModification.options ?? [];
+
+  const firstOption = options[0];
+
+  const handleSelect = (option: (typeof options)[number]) => {
+    props.onSelect?.(option);
+
+    const vehicleDto = options.find(
+      (item) => item.value === option.value,
+    )?.vehicleDto;
+
+    if (vehicleDto) {
+      onVehicleFound?.(vehicleDto);
+    }
   };
+
+  return (
+    <ControlledDictionarySelectBox
+      {...props}
+      options={options}
+      onSelect={handleSelect}
+    />
+  );
 };
