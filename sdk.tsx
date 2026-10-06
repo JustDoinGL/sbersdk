@@ -1,72 +1,52 @@
-import { useMemo } from 'react';
+import React, { FC } from 'react';
+import { Text } from '@your-ui-library'; // замените на ваш путь к Text
+import styles from './styles.module.css'; // замените на ваш путь к стилям
 
-// ... (остальные импорты)
+// 1. Выносим типы (если их нет в отдельном файле)
+type Contract = {
+  terminated: boolean;
+  prolongation_available: boolean;
+  // добавьте остальные поля, если они нужны
+};
 
-export const ControlledModificationField = <FormData extends FieldValues>({
-  // ... пропсы
-}) => {
-  // ... (предыдущие хуки)
+type Props = {
+  end_date: string;
+  contract: Contract; // Добавляем contract в пропсы, если он нужен для статуса
+};
 
-  const hasAllFilters = Boolean(maker) && Boolean(model) && Boolean(yearOfProduction) && Boolean(enginePower);
+// 2. Выносим конфиг за пределы компонента, чтобы не пересоздавать его при каждом рендере
+const CONTRACT_STATUS_CONFIG = [
+  {
+    condition: (contract: Contract) => contract.terminated,
+    label: 'Завершён',
+    color: '#00A043',
+  },
+  {
+    condition: (contract: Contract) => contract.prolongation_available,
+    label: 'Истекает',
+    color: 'rgba(255, 115, 0, 0.70)',
+  },
+  {
+    condition: () => true, // fallback
+    label: 'Действует',
+    color: 'rgba(21, 33, 73, 0.50)',
+  },
+];
 
-  const vehicleByModification = useSearchVehicleDto({
-    filters: {
-      maker: maker,
-      model: model,
-      prod: yearOfProduction,
-      enginePower_gt: enginePower,
-    } as any, // Фикс ошибки типизации
-    enabled: false,
-    groupKey: "modificationName",
-  });
+export const EndDataComponent: FC<Props> = ({ end_date, contract }) => {
+  // 3. Находим статус. Если contract не передан, можно использовать дефолтный статус
+  const status = contract 
+    ? CONTRACT_STATUS_CONFIG.find(({ condition }) => condition(contract)) 
+    : CONTRACT_STATUS_CONFIG[2]; // "Действует" по умолчанию
 
-  // Вся логика внутри useMemo
-  useMemo(() => {
-    const options = vehicleByModification.options;
-
-    // Проверка, что опции есть
-    if (!options) return;
-
-    const keys = Object.keys(options);
-
-    // Проверка, что ключи есть
-    if (keys.length === 0) return;
-
-    const firstKey = keys[0];
-    const selectedVehicleDto = options[firstKey];
-
-    console.log(options);
-
-    // Устанавливаем значение в форму
-    form.setValue("vehicle.modificationName", firstKey);
-
-    // Вызываем колбэк
-    if (onVehicleFound) {
-      onVehicleFound(selectedVehicleDto);
-    }
-
-  }, [vehicleByModification.options, form, onVehicleFound]);
-
-  const isLoading = vehicleByModification.loading || models.loading;
+  const { label, color } = status || CONTRACT_STATUS_CONFIG[2];
 
   return (
-    <ControlledDictionarySelectBox
-      label="Модификация"
-      endIcon={isLoading ? <Spinner /> : undefined}
-      size="xl"
-      options={models.options}
-      onSelect={(e) => {
-        if (props.onSelect) props.onSelect(e);
-        
-        // Логика для ручного выбора
-        const selectedKey = e.value;
-        const options = vehicleByModification.options;
-        
-        if (selectedKey && options && options[selectedKey]) {
-          form.setValue("vehicle.modificationName", selectedKey);
-          if (onVehicleFound) onVehicleFound(options[selectedKey]);
-        }
-      }}
-    />
+    <div className={styles.container}>
+      {/* 4. Передаем текст и цвет в один компонент */}
+      <Text font="body_2" style={{ color }}>
+        {end_date} — {label}
+      </Text>
+    </div>
   );
 };
