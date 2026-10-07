@@ -1,94 +1,210 @@
-import { getSchemaKeys, productsBaseSchema } from "@products/domain/shared/3_shared/validators";
-import { dateUtils } from "@/5_shared/date";
-import { EMPTY_MESSAGE } from "@/5_shared/const";
-import z from "zod";
+// =====================================================================
+// ФАЙЛ: src/modules/products/domain/kasko/1_screens/vehicle/vehicle_kasko.tsx
+// =====================================================================
 
-import { getMaxEndDate, getMaxStartDate } from "./helper";
+import { useWatch } from "react-hook-form";
+import { buildVehicleValuationAttributes } from "./vehicle_valuation"; // Предполагаемый путь импорта
 
-const MIN_TERM_DAYS = 1;
-const MAX_TERM_DAYS = 365;
+// ... (другие импорты и код компонента)
 
-const MIN_START_DATE_ERROR =
-  "Дата начала страхования может быть только с завтрашнего дня.";
+export const Vehicle: FC = () => {
+  // ... (другой код)
 
-const MAX_START_DATE_ERROR =
-  "Дата начала страхования превышает максимально допустимую дату.";
-
-const MIN_END_DATE_ERROR =
-  "Дата окончания страхования не может быть раньше даты начала.";
-
-const MAX_END_DATE_ERROR =
-  "Дата окончания страхования превышает максимально допустимый срок.";
-
-const MIN_TERM_DAYS_ERROR =
-  "Срок страхования должен быть не менее 1 дня.";
-
-const MAX_TERM_DAYS_ERROR =
-  "Срок страхования не может превышать 1 год.";
-
-const minStartDate = dateUtils.startOfDay(
-  dateUtils.tomorrow(),
-);
-
-export const policyPeriodsSchema = z
-  .object({
-    startDate: productsBaseSchema.optionalInputDate(
-      z
-        .date({ message: EMPTY_MESSAGE })
-        .min(minStartDate, {
-          message: MIN_START_DATE_ERROR,
-        })
-        .max(getMaxStartDate(), {
-          message: MAX_START_DATE_ERROR,
-        }),
-    ),
-
-    endDate: productsBaseSchema.optionalInputDate(
-      z.date({ message: EMPTY_MESSAGE }),
-    ),
-
-    termDays: productsBaseSchema.optionalInputNumber(
-      z
-        .number({ message: EMPTY_MESSAGE })
-        .int({ message: EMPTY_MESSAGE })
-        .min(MIN_TERM_DAYS, {
-          message: MIN_TERM_DAYS_ERROR,
-        })
-        .max(MAX_TERM_DAYS, {
-          message: MAX_TERM_DAYS_ERROR,
-        }),
-    ),
-  })
-  .superRefine((data, ctx) => {
-    const { startDate, endDate } = data;
-
-    if (!startDate || !endDate) {
-      return;
-    }
-
-    const maxEndDate = getMaxEndDate(startDate);
-
-    if (endDate < startDate) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["endDate"],
-        message: MIN_END_DATE_ERROR,
-      });
-    }
-
-    if (endDate > maxEndDate) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["endDate"],
-        message: MAX_END_DATE_ERROR,
-      });
-    }
+  // 1. ИСПРАВЛЕНИЕ: Добавляем purchaseDate и carMileage в деструктуризацию useWatch
+  // Теперь TypeScript не будет ругаться, что они объявлены, но не используются.
+  const [
+    category,
+    maker,
+    model,
+    modificationCode,
+    modificationName,
+    yearOfProduction,
+    vin,
+    bodyNumber,
+    regNumber,
+    enginePower,
+    engineVolume,
+    countOfSeats,
+    vehicleType,
+    makerForPrint,
+    modelForPrint,
+    maxWeight,
+    purchaseDate, // <-- ДОБАВЛЕНО
+    carMileage,   // <-- ДОБАВЛЕНО
+  ] = useWatch({
+    control: form.control,
+    name: PRICE_RANGE_ATTRIBUTE_FIELD_NAMES,
   });
 
-export type PolicyPeriodsSchema = z.infer<
-  typeof policyPeriodsSchema
->;
+  const priceRangeAttributes = buildVehicleValuationAttributes({
+    fieldValues: {
+      bodyNumber,
+      category,
+      countOfSeats,
+      enginePower,
+      engineVolume,
+      maker,
+      makerForPrint,
+      maxWeight,
+      model,
+      modelForPrint,
+      modificationCode,
+      modificationName,
+      regNumber,
+      vehicleType,
+      vin,
+      yearOfProduction,
+      purchaseDate, // <-- ПЕРЕДАЕМ СЮДА
+      carMileage,   // <-- ПЕРЕДАЕМ СЮДА
+    },
+    hasPreviousInsurancePolicy,
+    isProlongation: dealData.prolongation,
+    requestId: calculationData.calculation_id || String(calculationData.id),
+    vehicleCategoryOptions: vehicle_category,
+    vehicleTypeOptions: vehicle_type,
+    // ... другие параметры
+  });
 
-export const policyPeriodKeys = getSchemaKeys(
-  policyPeriodsSchema,
-) as (keyof PolicyPeriodsSchema)[];
+  // ... (остальной код)
+};
+
+
+// =====================================================================
+// ФАЙЛ: src/modules/products/domain/kasko/1_screens/vehicle/vehicle_valuation.ts
+// =====================================================================
+
+// ... (импорты)
+
+// 1. ИСПРАВЛЕНИЕ: Добавляем поля в тип, чтобы TS знал о них
+type VehicleValuationFieldValues = {
+  bodyNumber: unknown;
+  category: unknown;
+  countOfSeats: unknown;
+  enginePower: unknown;
+  engineVolume: unknown;
+  maker: unknown;
+  makerForPrint: unknown;
+  maxWeight: unknown;
+  model: unknown;
+  modelForPrint: unknown;
+  modificationCode: unknown;
+  modificationName: unknown;
+  regNumber: unknown;
+  vehicleType: unknown;
+  vin: unknown;
+  yearOfProduction: unknown;
+  purchaseDate: unknown; // <-- ДОБАВЛЕНО
+  carMileage: unknown;   // <-- ДОБАВЛЕНО
+};
+
+// ... (вспомогательные функции toString, toNumber, hasValue, getOptionLabel)
+
+// 2. ИСПРАВЛЕНИЕ: Функция addOptionalString уже проверяет наличие значения.
+// Если purchaseDate или carMileage пустые, они просто не добавятся в attributes.
+// Если они есть, они добавятся в запрос. Это и есть логика "не отправлять, пока их нет".
+const addOptionalString = <Key extends keyof CarPriceRangeAttributes>(
+  target: Partial<CarPriceRangeAttributes>,
+  key: Key,
+  value: unknown,
+) => {
+  const normalizedValue = toString(value);
+
+  // Если строка не пустая, добавляем её в объект
+  if (normalizedValue) {
+    target[key] = normalizedValue as CarPriceRangeAttributes[Key];
+  }
+};
+
+// ... (функция addOptionalNumber)
+
+export const buildVehicleValuationAttributes = ({
+  fieldValues,
+  hasPreviousInsurancePolicy,
+  isProlongation,
+  requestId,
+  vehicleCategoryOptions,
+  vehicleTypeOptions,
+  user,
+  referencesBusinessSegmentSet,
+}: {
+  fieldValues: VehicleValuationFieldValues;
+  hasPreviousInsurancePolicy: boolean;
+  isProlongation: boolean;
+  requestId: string;
+  vehicleCategoryOptions: OptionLike[];
+  vehicleTypeOptions: OptionLike[];
+  user: ReturnType<typeof useUser>;
+  referencesBusinessSegmentSet: References["business_segment"];
+}): Partial<CarPriceRangeAttributes> => {
+  const {
+    bodyNumber,
+    category,
+    countOfSeats,
+    enginePower,
+    engineVolume,
+    maker,
+    makerForPrint,
+    maxWeight,
+    model,
+    modelForPrint,
+    modificationCode,
+    modificationName,
+    regNumber,
+    vehicleType,
+    vin,
+    yearOfProduction,
+    purchaseDate, // <-- Извлекаем здесь
+    carMileage,   // <-- Извлекаем здесь
+  } = fieldValues;
+
+  const fullName = [maker, model, modificationName].map(toString).filter(Boolean).join(" ");
+  
+  const attributes: Partial<CarPriceRangeAttributes> = {
+    businessType: getBusinessType({ hasPreviousInsurancePolicy, isProlongation }),
+    modificationCode: toString(modificationCode),
+    requestChannel: mapBusinessSegment(user, referencesBusinessSegmentSet),
+    requestId,
+    salesChannel: "MRM",
+    yearOfProduction: toNumber(yearOfProduction),
+  };
+
+  // ... (добавление остальных полей через addOptionalString / addOptionalNumber)
+
+  addOptionalString(attributes, "bodyNumber", bodyNumber);
+  addOptionalString(attributes, "category", category);
+  addOptionalString(attributes, "categoryName", getOptionLabel(vehicleCategoryOptions, category));
+  addOptionalNumber(attributes, "countOfSeats", countOfSeats);
+  addOptionalNumber(attributes, "enginePower", enginePower);
+  addOptionalNumber(attributes, "engineVolume", engineVolume);
+  addOptionalString(attributes, "fullName", fullName);
+  addOptionalString(attributes, "maker", maker);
+  addOptionalNumber(attributes, "maxWeight", maxWeight);
+  addOptionalString(attributes, "model", model);
+  addOptionalString(attributes, "modificationName", modificationName);
+  addOptionalString(attributes, "regNumber", regNumber);
+  addOptionalString(attributes, "vehicleType", vehicleType);
+  addOptionalString(
+    attributes,
+    "vehicleTypeName",
+    getOptionLabel(vehicleTypeOptions, vehicleType),
+  );
+  addOptionalString(attributes, "vin", vin);
+  addOptionalString(attributes, "writtenMake", makerForPrint);
+  addOptionalString(attributes, "writtenModel", modelForPrint);
+
+  // 3. ИСПРАВЛЕНИЕ: Добавляем purchaseDate и carMileage в attributes
+  // Важно: Проверьте, что эти ключи ("purchaseDate", "carMileage") существуют 
+  // в типе CarPriceRangeAttributes. Если нет — их нужно добавить в тип.
+  addOptionalString(attributes, "purchaseDate", purchaseDate);
+  addOptionalNumber(attributes, "carMileage", carMileage); // Если пробег число
+
+  // Логика удаления maker/model, если есть writtenMake/writtenModel
+  if (hasValue(makerForPrint)) {
+    delete attributes.maker;
+  }
+  if (hasValue(modelForPrint)) {
+    delete attributes.model;
+  }
+
+  return attributes;
+};
