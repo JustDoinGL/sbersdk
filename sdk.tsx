@@ -1,33 +1,31 @@
-import { defineConfig } from 'vite';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+// insuranceTermConfig.ts
 
-export default defineConfig({
-  server: {
-    proxy: {
-      '/auth': {
-        target: 'https://stage-3-seller.sogaz.ru',
-        changeOrigin: true,
-        secure: false,
+export type InsuranceTermKey = 
+  | 'standardAnnual'
+  | 'shortTerm'
+  | 'transit'
+  | 'nonResident';
 
-        configure: (proxy) => {
-          proxy.on('proxyRes', (proxyRes: IncomingMessage) => {
-            const location = proxyRes.headers.location;
+export interface InsuranceTermAlert {
+  header: string;
+  description: string;
+}
 
-            if (!location) {
-              return;
-            }
-
-            console.log('AUTH REDIRECT:', location);
-
-            if (location.includes('stage-2-seller.sogaz.ru')) {
-              proxyRes.headers.location = location.replace(
-                'https://stage-2-seller.sogaz.ru',
-                'http://localhost:3000',
-              );
-            }
-          });
-        },
-      },
-    },
+export const insuranceTermConfig: Record<InsuranceTermKey, InsuranceTermAlert> = {
+  standardAnnual: {
+    header: "Стандартный годовой полис",
+    description: "Полная защита автомобиля на весь срок страхования",
   },
-});
+  shortTerm: {
+    header: "Краткосрочный полис до 3 месяцев",
+    description: "Для автомобилей, зарегистрированных в РФ или подлежащих регистрации",
+  },
+  transit: {
+    header: "Полис для перегона автомобиля",
+    description: "Для перегона к месту регистрации после покупки",
+  },
+  nonResident: {
+    header: "Собственник — нерезидент",
+    description: "Срок договора выбирается датами: от 5 дней до 12 месяцев",
+  },
+};
