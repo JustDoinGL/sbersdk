@@ -1,24 +1,27 @@
+import { describe, expect, it, vi } from "vitest";
 
-import { vi } from 'vitest';
+// ВАЖНО: мокаем именно @sg/uikit, а не @sourcegraph/uikit
+vi.mock("@sg/uikit", () => ({
+  Avatar: () => null,
+  IconButton: ({ children }: any) => children,
+}));
 
-vi.mock('@sourcegraph/uikit', () => {
-  // Создаем заглушки для всех компонентов, которые используются в card.tsx
-  return {
-    Avatar: () => null,
-    IconButton: ({ children }: any) => children, // Или null, если не важен рендер
-    // Добавь другие компоненты, если ругается на них
-  };
+vi.mock("@5_shared/ui", () => {
+  return new Proxy({}, {
+    get: (_, prop) => {
+      if (prop === "__esModule") return true;
+      return () => null;
+    },
+  });
 });
 
-// То же самое для других библиотек
-vi.mock('@5_shared/ui', () => ({
-  // Перечисли все экспорты, которые используются
-  Button: () => null,
-  Input: () => null,
-}));
+vi.mock("@5_shared/icons", () => {
+  return new Proxy({}, {
+    get: (_, prop) => {
+      if (prop === "__esModule") return true;
+      return () => null;
+    },
+  });
+});
 
-vi.mock('@5_shared/icons', () => ({
-  // Перечисли иконки
-  CloseIcon: () => null,
-  CheckIcon: () => null,
-}));
+// ... далее твои импорты и тесты
