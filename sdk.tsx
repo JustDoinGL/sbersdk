@@ -1,84 +1,149 @@
-import { Controller, useFormContext } from "react-hook-form";
-import { AutoComplete } from "..."; // Ваш UI-компонент
-import { ASSETS } from "...";
-import { Chip, CardLayout } from "..."; // Ваши UI-компоненты
+import React, { useState, useMemo } from 'react';
+import { Controller, Control, FieldValues, Path } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
+import { useDebounce } from 'use-debounce';
+import { Autocomplete } from '@your-ui-kit/autocomplete';
+import { ErrorMessage } from '@your-ui-kit/error-message';
+import { Show } from '@your-ui-kit/show';
 
-// Предполагаем, что у вас есть типы для формы и программы
-// type Program = { id: string; label: string; ... } 
-// type FormValues = { program: { region: Program | null, ... } }
+// Типизация пропсов
+type Props<T extends FieldValues, K extends Path<T>> = {
+  name: K;
+  control: Control<T>;
+  product: string;
+  code: string;
+  label?: string;
+  placeholder?: string;
+  disabled?: boolean;
+};
 
-interface RegionFieldProps {
-  regions: Array<{ label: string; value: Program }>; // Или как у вас типизирован массив регионов
-  popularRegions: Array<{ label: string }>;
-  isRegionAvailable: boolean;
-}
+// Сырой тип из справочника
+type ReferenceDto = {
+  name: string;
+  slug: string;
+  someSubtitle?: string; // Пример доп. поля для JSX
+};
 
-export const RegionField = ({ regions, popularRegions, isRegionAvailable }: RegionFieldProps) => {
-  const { control, setValue, watch } = useFormContext<FormValues>();
+// Тип опции (value - строка, label - JSX)
+type AutoCompleteOption = {
+  value: string;
+  label: React.ReactNode;
+  origin: ReferenceDto; // Исходные данные для показа в инпуте
+};
+
+export const DictionarySearchSelect = <T extends FieldValues, K extends Path<T>>({
+  name,
+  control,
+  product,
+  code,
+  label,
+  placeholder,
+  disabled,
+}: Props<T, K>) => {
+  // Локальный стейт ТОЛЬКО для строки ввода (чтобы показывать name в инпуте)
+  const [inputValue, setInputValue] = useState('');
   
-  // Если нужно отслеживать выбранный регион для чего-то еще
-  // const currentRegion = watch("program.region");
+  const [debouncedQuery] = useDebounce(inputValue, 500);
 
-  if (!isRegionAvailable) return null;
+  // 1. Запрос к API
+  const fetchData = async (signal: AbortSignal): Promise<ReferenceDto[]> => {
+    const res = await apiMortgage.getReferences({
+      dictNames: ["mortgage_mortgage_insurer"],
+      search: debouncedQuery.trim() || undefined,
+    }, { signal });
+    
+    return res.mortgage_mortgage_insurer ?? [];
+  };
+
+  // 2. Query с маппингом в JSX label
+  const { data: options = [], isLoading, isError } = useQuery({
+    queryKey: ["dictionary", product, code, debouncedQuery],
+    queryFn: ({ signal }) => fetchData(signal),
+    enabled: !!debouncedQuery,
+    select: (rawData) => {
+      return rawData.map((dto: ReferenceDto): AutoCompleteOption => ({
+        value: dto.slug,
+        label: (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span>{dto.name}</span>
+            {dto.someSubtitle && (
+              <span style={{ fontSize: '0.8em', color: '#888' }}>
+                {dto.someSubtitle}
+              </span>
+            )}
+          </div>
+        ),
+        origin: dto,
+      }));
+    },
+  });
 
   return (
-    <Show when={isRegionAvailable}>
-      <CardLayout
-        title="Регион"
-        avatarSlot={<AvatarMrm size="46" src={ASSETS.PRODUCTS.DMS.FLAG} />}
-      >
-        <div className={styles.field}>
-          <Controller
-            control={control}
-            name="program.region"
-            rules={{ required: "Необходимо выбрать регион" }}
-            render={({ field, fieldState }) => (
-              <AutoComplete<Program> // Указываем дженерик, если ваш компонент это поддерживает
-                options={regions}
-                // Передаем выбранное значение. Смотря что ждет ваш AutoComplete: объект или строку.
-                // Если он ждет объект, передаем field.value (который равен { label, value })
-                value={field.value}
-                onChange={(option) => {
-                  // option здесь — это элемент из массива regions, то есть { label, value: Program }
-                  // В форму мы сохраняем именно Program (или весь объект option, смотря как валидирует Zod)
-                  field.onChange(option?.value || null); 
-                }}
-                inputProps={{
-                  required: true,
-                  label: "Регион обслуживания",
-                  textError: fieldState.error?.message,
-                  // Для отображения в инпуте берем label из выбранного объекта
-                  value: field.value?.label || "", 
-                }}
-                // Если AutoComplete требует отдельный пропс для текста инпута
-                // inputValue={field.value?.label || ""} 
-              />
-            )}
-          />
-        </div>
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => {
+        // Находим выбранную опцию по текущему значению формы (field.value)
+        const selectedOption = useMemo(() => {
+          return options.find((opt) => opt.value === field.value) || null;
+        }, [options, field.value]);
 
-        <div className={styles.popularRegions}>
-          {popularRegions.map(({ label }) => (
-            <Chip
-              key={label}
-              size={32}
-              variant="secondary"
-              onClick={() => {
-                // Находим полный объект региона по лейблу, чтобы сохранить в форму корректные данные
-                const foundRegion = regions.find(r => r.label === label);
-                if (foundRegion) {
-                  setValue("program.region", foundRegion.value, { 
-                    shouldValidate: true, 
-                    shouldDirty: true 
-                  });
-                }
-              }}
-            >
-              {label}
-            </Chip>
-          ))}
-        </div>
-      </CardLayout>
-    </Show>
+        // Синхронизируем inputValue, если значение в форме изменилось извне (например, reset)
+        // Это делается через useEffect, но чтобы не усложнять, можно полагаться на onSelect
+        // Если нужен полный контроль, раскомментируй:
+        /*
+        useEffect(() => {
+          if (selectedOption) {
+            setInputValue(selectedOption.origin.name);
+          } else if (!field.value) {
+            setInputValue('');
+          }
+        }, [field.value, selectedOption]);
+        */
+
+        // Обработка ввода текста
+        const handleInputChange = (value: string) => {
+          setInputValue(value);
+          // Если пользователь стирает текст, очищаем значение в форме
+          if (!value) {
+            field.onChange('');
+          }
+        };
+
+        // Обработка выбора из списка
+        const handleSelect = (option: AutoCompleteOption) => {
+          setInputValue(option.origin.name); // Показываем name в инпуте
+          field.onChange(option.value); // В форму уходит slug!
+        };
+
+        return (
+          <div>
+            <Autocomplete
+              label={label || "Спорт"}
+              placeholder={placeholder || "Выберите"}
+              value={inputValue}
+              onChange={handleInputChange}
+              options={options}
+              // Указываем, какую строку показывать в инпуте при выборе
+              getOptionLabel={(option: AutoCompleteOption) => option.origin.name}
+              // Рендер опции в выпадающем списке (если кит требует отдельный рендер)
+              renderOption={(props, option) => (
+                <li {...props} key={option.value}>
+                  {option.label}
+                </li>
+              )}
+              onSelect={handleSelect}
+              isLoading={isLoading}
+              hasError={isError || !!fieldState.error}
+              disabled={disabled}
+            />
+            
+            <Show when={fieldState.error?.message}>
+              {(message) => <ErrorMessage message={message} />}
+            </Show>
+          </div>
+        );
+      }}
+    />
   );
 };
