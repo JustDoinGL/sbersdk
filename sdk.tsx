@@ -1,5 +1,5 @@
 const createPolicyStore = (): PolicyStore => {
-  // Внутреннее состояние (используется для логики)
+  // 1. Внутреннее состояние
   let state: PolicyInternalState = {
     status: "DRAFT_INCOMPLETE",
     lastRecalculationCounter: 0,
@@ -7,33 +7,24 @@ const createPolicyStore = (): PolicyStore => {
     documents: [],
   };
 
-  // Слушатели для useSyncExternalStore
+  // 2. Слушатели
   const listeners = new Set<() => void>();
   const emit = () => {
     listeners.forEach((listener) => listener());
   };
 
-  // Снимок (Snapshot) - именно его будет читать React. 
-  // Важно: он должен быть неизменяемым и обновляться новым объектом при каждом изменении.
-  let snapshot: PolicyStore;
+  // 3. Снимок для React. Инициализируем копией данных.
+  let snapshot: PolicyInternalState = { ...state };
 
-  // Вспомогательная функция для обновления состояния и создания нового снимка
+  // 4. Функция для обновления стейта и снимка
   const updateState = (newState: Partial<PolicyInternalState>) => {
     state = { ...state, ...newState };
-    
-    // Создаем НОВЫЙ объект для снимка, чтобы React увидел изменение ссылки
-    snapshot = {
-      ...snapshot,
-      ...newState,
-    };
-    
+    snapshot = { ...state }; // Создаем НОВЫЙ объект для React
     emit();
   };
 
-  // Создаем стор
   const store: PolicyStore = {
-    // В PolicyStore должны быть методы и состояние. 
-    // Инициализируем начальными данными.
+    // Начальные данные (для типизации, если обращаетесь напрямую)
     ...state,
 
     subscribe: (listener) => {
@@ -41,12 +32,11 @@ const createPolicyStore = (): PolicyStore => {
       return () => listeners.delete(listener);
     },
 
-    // Возвращаем снимок, а не сам стор
+    // Возвращаем чистый снимок данных
     getSnapshot: () => snapshot,
 
     syncExternalFlags: (flags) => {
       const newStatus = resolveStatus(flags, state);
-      
       updateState({
         status: newStatus,
         lastRecalculationCounter: flags.recalculationCounter,
@@ -66,26 +56,16 @@ const createPolicyStore = (): PolicyStore => {
     },
 
     reset: () => {
-      // Сбрасываем внутреннее состояние
       state = {
         status: "DRAFT_INCOMPLETE",
         lastRecalculationCounter: 0,
         isFirstCalculation: true,
         documents: [],
       };
-      
-      // Принудительно создаем новый снимок с методами
-      snapshot = {
-        ...store,
-        ...state,
-      };
-      
+      snapshot = { ...state }; // Обновляем снимок
       emit();
     },
   };
-
-  // Инициализируем снимок при первом создании стора
-  snapshot = { ...store };
 
   return store;
 };
@@ -96,11 +76,13 @@ export const usePolicyStore = () => {
   return useSyncExternalStore(
     policyStore.subscribe,
     policyStore.getSnapshot,
-    policyStore.getSnapshot // Третий аргумент для SSR (серверного рендеринга)
+    policyStore.getSnapshot
   );
 };
 
 export const usePolicyConfig = () => {
+  // usePolicyStore теперь возвращает данные (PolicyInternalState), 
+  // а не весь стор с методами. Поэтому деструктуризация работает корректно.
   const { status } = usePolicyStore();
   return POLICY_STATUSES[status];
 };
