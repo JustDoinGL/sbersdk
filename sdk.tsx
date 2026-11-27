@@ -1,60 +1,4 @@
-
-type PolicyInternalState = {
-  status: PolicyStatus;
-  lastRecalculationCounter: number;
-  isFirstCalculation: boolean;
-  documents: SampleDocument[];
-};
-
-type PolicyStore = {
-  subscribe: (listener: () => void) => () => void;
-  getSnapshot: () => PolicyInternalState;
-
-  syncExternalFlags: (flags: ExternalFlags) => void;
-  setStatus: (status: PolicyStatus) => void;
-  setDocuments: (documents: SampleDocument[]) => void;
-  reset: () => void;
-};
-
-const resolveStatus = (
-  flags: ExternalFlags,
-  internal: PolicyInternalState
-): PolicyStatus => {
-  const { canRequest, recalculationCounter } = flags;
-
-  const {
-    lastRecalculationCounter,
-    status,
-    isFirstCalculation,
-  } = internal;
-
-  if (!canRequest) {
-    return "DRAFT_INCOMPLETE";
-  }
-
-  if (!isFirstCalculation) {
-    const isRecalculated =
-      recalculationCounter > lastRecalculationCounter;
-
-    if (isRecalculated) {
-      emailCooldown.reset();
-      return "DRAFT_REWORK";
-    }
-  }
-
-  if (status === "SENT_DOCUMENT") {
-    return "SENT_DOCUMENT";
-  }
-
-  if (status === "READY_DOWNLOAD_OR_SENT") {
-    return "READY_DOWNLOAD_OR_SENT";
-  }
-
-  return "READY_TO_GENERATE";
-};
-
 const createPolicyStore = (): PolicyStore => {
-  // Начальное состояние
   let state: PolicyInternalState = {
     status: "DRAFT_INCOMPLETE",
     lastRecalculationCounter: 0,
@@ -62,15 +6,12 @@ const createPolicyStore = (): PolicyStore => {
     documents: [],
   };
 
-  // Подписчики
   const listeners = new Set<() => void>();
 
-  // Уведомление подписчиков
   const emit = () => {
-    listeners.forEach((listener) => listener());
+    listeners.forEach(listener => listener());
   };
 
-  // Подписка
   const subscribe = (listener: () => void) => {
     listeners.add(listener);
 
@@ -79,34 +20,31 @@ const createPolicyStore = (): PolicyStore => {
     };
   };
 
-  // Получение актуального snapshot
   const getSnapshot = () => state;
 
-  // Обновление состояния
   const updateState = (
-    updater: (
-      prev: PolicyInternalState
-    ) => PolicyInternalState
+    updater: (prev: PolicyInternalState) => PolicyInternalState
   ) => {
     state = updater(state);
     emit();
   };
 
   const store: PolicyStore = {
+    // Подписки
     subscribe,
     getSnapshot,
 
+    // Все твои методы остаются доступными
     syncExternalFlags: (flags) => {
-      updateState((prev) => ({
+      updateState(prev => ({
         ...prev,
         status: resolveStatus(flags, prev),
-        lastRecalculationCounter:
-          flags.recalculationCounter,
+        lastRecalculationCounter: flags.recalculationCounter,
       }));
     },
 
     setStatus: (status) => {
-      updateState((prev) => ({
+      updateState(prev => ({
         ...prev,
         status,
         ...(status === "READY_DOWNLOAD_OR_SENT"
@@ -116,7 +54,7 @@ const createPolicyStore = (): PolicyStore => {
     },
 
     setDocuments: (documents) => {
-      updateState((prev) => ({
+      updateState(prev => ({
         ...prev,
         documents,
       }));
@@ -135,10 +73,8 @@ const createPolicyStore = (): PolicyStore => {
   return store;
 };
 
-// Создаём store
-const policyStore = createPolicyStore();
+export const policyStore = createPolicyStore();
 
-// React hook
 export const usePolicyStore = () => {
   return useSyncExternalStore(
     policyStore.subscribe,
@@ -147,7 +83,6 @@ export const usePolicyStore = () => {
   );
 };
 
-// Получение конфигурации
 export const usePolicyConfig = () => {
   const { status } = usePolicyStore();
 
