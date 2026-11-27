@@ -1,121 +1,211 @@
-import { QueryClient, queryOptions } from '@tanstack/react-query';
-import { LoaderFunctionArgs, RouteObject } from 'react-router-dom';
-import { dealListApi } from './api'; // Импортируйте ваш API
-import { DealDto, DealParamsDTO } from './types'; // Импортируйте типы
-import { Routes, DealRoutes } from '@5_shared/routes/routes.desktop';
-import Products from './Products'; // Импортируйте компонент
 
-// РЕШЕНИЕ 1: Используйте ensureQueryData (самый простой)
-const productLoader = (queryClient: QueryClient) =>
-  async ({ params }: LoaderFunctionArgs): Promise<DealDto> => {
-    const { id } = params as { id: string };
-    
-    if (!id) {
-      throw new Error('Deal ID is required');
+import { useSyncExternalStore } from "react";
+
+// ==========================================
+// TYPES
+// ==========================================
+
+type PolicyInternalState = {
+  status: PolicyStatus;
+  lastRecalculationCounter: number;
+  isFirstCalculation: boolean;
+  documents: SampleDocument[];
+};
+
+// Все методы стора
+type PolicyStoreActions = {
+  syncExternalFlags: (flags: ExternalFlags) => void;
+  setStatus: (status: PolicyStatus) => void;
+  setDocuments: (documents: SampleDocument[]) => void;
+  reset: () => void;
+};
+
+// API самого хранилища
+type PolicyStore = {
+  subscribe: (listener: () => void) => () => void;
+  getSnapshot: () => PolicyInternalState;
+  actions: PolicyStoreActions;
+};
+
+// То, что возвращает React Hook
+type PolicyStoreResult = PolicyInternalState & PolicyStoreActions;
+
+
+// ==========================================
+// RESOLVE STATUS
+// ==========================================
+
+const resolveStatus = (
+  flags: ExternalFlags,
+  internal: PolicyInternalState
+): PolicyStatus => {
+  const { canRequest, recalculationCounter } = flags;
+
+  const {
+    lastRecalculationCounter,
+    status,
+    isFirstCalculation,
+  } = internal;
+
+  if (!canRequest) {
+    return "DRAFT_INCOMPLETE";
+  }
+
+  if (!isFirstCalculation) {
+    const isRecalculated =
+      recalculationCounter > lastRecalculationCounter;
+
+    if (isRecalculated) {
+      emailCooldown.reset();
+      return "DRAFT_REWORK";
     }
-    
-    // Используем ensureQueryData - он автоматически работает с кэшем
-    return await queryClient.ensureQueryData(
-      dealListApi.getDealByIdOptions(id)
-    );
+  }
+
+  if (status === "SENT_DOCUMENT") {
+    return "SENT_DOCUMENT";
+  }
+
+  if (status === "READY_DOWNLOAD_OR_SENT") {
+    return "READY_DOWNLOAD_OR_SENT";
+  }
+
+  return "READY_TO_GENERATE";
+};
+
+
+// ==========================================
+// CREATE POLICY STORE
+// ==========================================
+
+const createPolicyStore = (): PolicyStore => {
+
+  // Internal state
+  let state: PolicyInternalState = {
+    status: "DRAFT_INCOMPLETE",
+    lastRecalculationCounter: 0,
+    isFirstCalculation: true,
+    documents: [],
   };
 
-// РЕШЕНИЕ 2: Ручной подход с правильной типизацией
-const productLoaderAlternative = (queryClient: QueryClient) =>
-  async ({ params }: LoaderFunctionArgs): Promise<DealDto> => {
-    const { id } = params as { id: string };
-    
-    if (!id) {
-      throw new Error('Deal ID is required');
-    }
-    
-    // Получаем готовые опции запроса из вашего API
-    const options = dealListApi.getDealByIdOptions(id);
-    
-    // Проверяем кэш - теперь типы совпадают
-    const cached = queryClient.getQueryData<DealDto>(options.queryKey);
-    
-    if (cached) {
-      console.log(`Taking deal ${id} from cache`);
-      return cached;
-    }
-    
-    console.log(`Fetching deal ${id} from server`);
-    
-    // fetchQuery принимает options, а не queryOptions
-    return await queryClient.fetchQuery<DealDto>(options);
+  // Listeners
+  const listeners = new Set<() => void>();
+
+  // Notify subscribers
+  const emit = () => {
+    listeners.forEach((listener) => listener());
   };
 
-// РЕШЕНИЕ 3: Для нового React Router (с версии 6.4)
-const productLoaderV2 = (queryClient: QueryClient) => {
-  return async ({ params }: LoaderFunctionArgs) => {
-    const { id } = params as { id: string };
-    
-    if (!id) {
-      throw new Response('Not Found', { status: 404 });
-    }
-    
-    try {
-      return await queryClient.ensureQueryData(
-        dealListApi.getDealByIdOptions(id)
-      );
-    } catch (error) {
-      throw new Response('Failed to load deal', { 
-        status: 500,
-        statusText: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
+  // Subscribe
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+
+  // Get current snapshot
+  const getSnapshot = (): PolicyInternalState => state;
+
+  // Centralized state update
+  const updateState = (
+    updater: (
+      prev: PolicyInternalState
+    ) => PolicyInternalState
+  ) => {
+    state = updater(state);
+    emit();
+  };
+
+
+  // ========================================
+  // ACTIONS
+  // ========================================
+
+  const actions: PolicyStoreActions = {
+
+    // Synchronize external flags
+    syncExternalFlags: (flags) => {
+      updateState((prev) => ({
+        ...prev,
+        status: resolveStatus(flags, prev),
+        lastRecalculationCounter:
+          flags.recalculationCounter,
+      }));
+    },
+
+    // Set status
+    setStatus: (status) => {
+      updateState((prev) => ({
+        ...prev,
+        status,
+        ...(status === "READY_DOWNLOAD_OR_SENT"
+          ? { isFirstCalculation: false }
+          : {}),
+      }));
+    },
+
+    // Set documents
+    setDocuments: (documents) => {
+      updateState((prev) => ({
+        ...prev,
+        documents,
+      }));
+    },
+
+    // Reset store
+    reset: () => {
+      updateState(() => ({
+        status: "DRAFT_INCOMPLETE",
+        lastRecalculationCounter: 0,
+        isFirstCalculation: true,
+        documents: [],
+      }));
+    },
+  };
+
+
+  // Return store
+  return {
+    subscribe,
+    getSnapshot,
+    actions,
   };
 };
 
-// Создаем QueryClient с правильными настройками
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 минут
-      gcTime: 10 * 60 * 1000, // 10 минут (ранее cacheTime)
-      retry: 2,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
-// Правильная конфигурация маршрутов
-export const productsRoutes: RouteObject[] = [
-  {
-    path: `/${Routes.DEAL}/${DealRoutes.PRODUCTS}/:id`,
-    element: <Products />, // Используйте element вместо component
-    loader: productLoader(queryClient), // Выберите нужный loader
-    // Или для вложенных маршрутов:
-    // children: [
-    //   {
-    //     path: ':id',
-    //     element: <Products />,
-    //     loader: productLoader(queryClient),
-    //   }
-    // ]
-  },
-];
+// ==========================================
+// POLICY STORE INSTANCE
+// ==========================================
 
-// АЛЬТЕРНАТИВА: Если нужны несколько loader'ов
-export const productsRoutesWithMultipleLoaders: RouteObject[] = [
-  {
-    path: `/${Routes.DEAL}/${DealRoutes.PRODUCTS}`,
-    element: <Products />,
-    // Для нескольких loader'ов используйте parent route
-    loader: async ({ params, request }) => {
-      const { id } = params as { id: string };
-      
-      // Загружаем основные данные
-      const dealData = await productLoader(queryClient)({ params, request });
-      
-      // Можете загрузить дополнительные данные здесь
-      // const extraData = await fetchExtraData(id);
-      
-      return {
-        deal: dealData,
-        // extra: extraData
-      };
-    },
-  },
-];
+const policyStore = createPolicyStore();
+
+
+// ==========================================
+// USE POLICY STORE
+// ==========================================
+
+export const usePolicyStore = (): PolicyStoreResult => {
+
+  const state = useSyncExternalStore(
+    policyStore.subscribe,
+    policyStore.getSnapshot,
+    policyStore.getSnapshot
+  );
+
+  return {
+    ...state,
+    ...policyStore.actions,
+  };
+};
+
+
+// ==========================================
+// USE POLICY CONFIG
+// ==========================================
+
+export const usePolicyConfig = () => {
+  const { status } = usePolicyStore();
+
+  return POLICY_STATUSES[status];
+};
